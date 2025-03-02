@@ -10,3 +10,4 @@ scraper = "0.23.1"
 serde = { version = "1.0.218", features = ["derive"] }
 tokio = { version = "1.43.0", features = ["full"] }
 tokio-postgres = { version = "0.7.13", features = ["with-uuid-1"] }
+url = "2.5.4"

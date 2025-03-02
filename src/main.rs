@@ -1,24 +1,83 @@
 mod db;
 mod meta_tags;
 
-use crate::db::{create_db_client, save_analysis, MetaTag, SeoAnalysis};
-use crate::meta_tags::META_SELECTORS;
+use std::collections::HashSet;
+use std::sync::Arc;
+
 use reqwest;
 use scraper::{Html, Selector};
+use tokio::sync::Mutex;
+use url::Url;
+
+use crate::db::{
+    create_db_client, prepare_statements, save_analysis, DbStatements, MetaTag, SeoAnalysis,
+};
+use crate::meta_tags::META_SELECTORS;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Fetch website HTML
-    let response = reqwest::get("https://www.nytimes.com")
-        .await?
-        .text()
-        .await?;
-    println!("Website fetched successfully");
+    let initial_url = "https://nytimes.com";
+
+    let client = create_db_client().await?;
+    let statements = prepare_statements(&client).await?;
+    let client = Arc::new(client);
+    let statements = Arc::new(statements);
+    let visited = Arc::new(Mutex::new(HashSet::new()));
+
+    let (main_links, main_analysis) =
+        process_page(initial_url, client.clone(), statements.clone()).await?;
+
+    save_analysis(&client, &statements, &main_analysis).await?;
+    println!("Main page processed: {}", initial_url);
+
+    let max_pages = 10;
+    let mut processed = 1;
+    let mut progress = 0;
+    let total_links = main_links.len().min(max_pages - 1);
+
+    println!("Processing {} child pages...", total_links);
+
+    for url in main_links.iter() {
+        if processed >= max_pages {
+            break;
+        }
+
+        let mut visited_lock = visited.lock().await;
+        if visited_lock.insert(url.clone()) {
+            drop(visited_lock);
+
+            progress += 1;
+            print_progress(progress, total_links, url);
+
+            match process_page(url, client.clone(), statements.clone()).await {
+                Ok(_) => processed += 1,
+                Err(e) => eprintln!("Error processing {}: {}", url, e),
+            }
+        }
+    }
+
+    println!("\nProcessed {} pages total", processed);
+    Ok(())
+}
+
+async fn process_page(
+    url: &str,
+    client: Arc<tokio_postgres::Client>,
+    statements: Arc<DbStatements>,
+) -> Result<(Vec<String>, SeoAnalysis), Box<dyn std::error::Error>> {
+    let response = reqwest::get(url).await?.text().await?;
 
     let document = Html::parse_document(&response);
-    let client = create_db_client().await?;
+    let analysis = analyze_document(&document, url);
+    let links = extract_links(&document, url);
 
+    save_analysis(&client, &statements, &analysis).await?;
+    Ok((links, analysis))
+}
+
+fn analyze_document(document: &Html, url: &str) -> SeoAnalysis {
     let mut analysis = SeoAnalysis {
+        url: url.to_string(),
         language: String::new(),
         title: String::new(),
         meta_tags: Vec::new(),
@@ -63,15 +122,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    if let Ok(links_selector) = Selector::parse("a[href]") {
-        println!("\nFound links:");
-        for link in document.select(&links_selector) {
-            if let Some(href) = link.value().attr("href") {
-                println!("{}", href);
-            }
-        }
-    }
-
     // ====== CONTENT TEXT EXTRACTION ======
     let content_selector = Selector::parse("h1, h2, h3, h4, h5, h6, p, li").unwrap();
     for element in document.select(&content_selector) {
@@ -80,11 +130,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         analysis.content_text.push('\n');
     }
 
-    match save_analysis(&client, &analysis).await {
-        Ok(_) => println!("SEO analysis saved successfully!"),
-        Err(e) => eprintln!("Error saving analysis: {}", e),
+    analysis
+}
+
+fn extract_links(document: &Html, base_url: &str) -> Vec<String> {
+    let mut links = Vec::new();
+    let base_url = match Url::parse(base_url) {
+        Ok(u) => u,
+        Err(_) => return links,
+    };
+
+    if let Ok(selector) = Selector::parse("a[href]") {
+        for element in document.select(&selector) {
+            if let Some(href) = element.value().attr("href") {
+                if let Ok(mut parsed_url) = base_url.join(href) {
+                    parsed_url.set_fragment(None);
+                    if parsed_url.scheme() == "http" || parsed_url.scheme() == "https" {
+                        links.push(parsed_url.to_string());
+                    }
+                }
+            }
+        }
     }
 
-    println!("SEO analysis saved successfully!");
-    Ok(())
+    links
+}
+
+fn print_progress(current: usize, total: usize, url: &str) {
+    println!("[{}/{}] Processing {}", current, total, url);
 }
