@@ -9,28 +9,22 @@ use scraper::{Html, Selector};
 use tokio::sync::Mutex;
 use url::Url;
 
-use crate::db::{
-    create_db_client, prepare_statements, save_analysis, DbStatements, MetaTag, SeoAnalysis,
-};
+use crate::db::{create_db_pool, save_analysis, MetaTag, SeoAnalysis};
 use crate::meta_tags::META_SELECTORS;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let initial_url = "https://nytimes.com";
 
-    let client = create_db_client().await?;
-    let statements = prepare_statements(&client).await?;
-    let client = Arc::new(client);
-    let statements = Arc::new(statements);
+    let pool = create_db_pool().await?;
     let visited = Arc::new(Mutex::new(HashSet::new()));
 
-    let (main_links, main_analysis) =
-        process_page(initial_url, client.clone(), statements.clone()).await?;
+    let (main_links, main_analysis) = process_page(initial_url, &pool).await?;
 
-    save_analysis(&client, &statements, &main_analysis).await?;
+    save_analysis(&pool, &main_analysis).await?;
     println!("Main page processed: {}", initial_url);
 
-    let max_pages = 10;
+    let max_pages = 700;
     let mut processed = 1;
     let mut progress = 0;
     let total_links = main_links.len().min(max_pages - 1);
@@ -49,7 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             progress += 1;
             print_progress(progress, total_links, url);
 
-            match process_page(url, client.clone(), statements.clone()).await {
+            match process_page(url, &pool).await {
                 Ok(_) => processed += 1,
                 Err(e) => eprintln!("Error processing {}: {}", url, e),
             }
@@ -62,16 +56,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn process_page(
     url: &str,
-    client: Arc<tokio_postgres::Client>,
-    statements: Arc<DbStatements>,
+    pool: &sqlx::PgPool,
 ) -> Result<(Vec<String>, SeoAnalysis), Box<dyn std::error::Error>> {
     let response = reqwest::get(url).await?.text().await?;
-
     let document = Html::parse_document(&response);
+
+    let a_selector = Selector::parse("a").unwrap();
+    let a_tags_count = document.select(&a_selector).count();
+    println!("Total <a> tags on {}: {}", url, a_tags_count);
+
     let analysis = analyze_document(&document, url);
     let links = extract_links(&document, url);
 
-    save_analysis(&client, &statements, &analysis).await?;
+    save_analysis(pool, &analysis).await?;
     Ok((links, analysis))
 }
 

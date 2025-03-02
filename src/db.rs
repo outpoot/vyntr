@@ -1,6 +1,7 @@
 use serde::Serialize;
+use serde_json;
+use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::env;
-use tokio_postgres::{Client, NoTls, Statement};
 
 #[derive(Debug, Serialize)]
 pub struct SeoAnalysis {
@@ -18,79 +19,49 @@ pub struct MetaTag {
     pub content: String,
 }
 
-pub struct DbStatements {
-    pub insert_site: Statement,
-    pub insert_meta: Statement,
-}
-
-pub async fn create_db_client() -> Result<Client, Box<dyn std::error::Error>> {
+pub async fn create_db_pool() -> Result<PgPool, Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
-
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set in .env");
-
-    let (client, connection) = tokio_postgres::connect(&database_url, NoTls).await?;
-
-    tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            eprintln!("Connection error: {}", e);
-        }
-    });
-
-    Ok(client)
-}
-
-pub async fn prepare_statements(
-    client: &Client,
-) -> Result<DbStatements, Box<dyn std::error::Error>> {
-    let insert_site = client
-        .prepare(
-            "INSERT INTO sites (url, language, title, canonical_url, content_text)
-             VALUES ($1, $2, $3, $4, $5)
-             RETURNING id;",
-        )
+    let database_url = env::var("DATABASE_URL")?;
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url)
         .await?;
 
-    let insert_meta = client
-        .prepare(
-            "INSERT INTO meta_tags (analysis_id, name, content)
-             VALUES ($1, $2, $3);",
-        )
-        .await?;
-
-    Ok(DbStatements {
-        insert_site,
-        insert_meta,
-    })
+    Ok(pool)
 }
 
 pub async fn save_analysis(
-    client: &Client,
-    statements: &DbStatements,
+    pool: &PgPool,
     analysis: &SeoAnalysis,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let row = client
-        .query_one(
-            &statements.insert_site,
-            &[
-                &analysis.url,
-                &analysis.language,
-                &analysis.title,
-                &analysis.canonical_url.as_deref(),
-                &analysis.content_text,
-            ],
-        )
-        .await?;
-    let analysis_id: i32 = row.get(0);
+    // Use raw SQL queries without prepared statements
+    let analysis_id: i32 = sqlx::query_scalar(
+        r#"
+        INSERT INTO sites (url, language, title, canonical_url, content_text)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id
+        "#,
+    )
+    .bind(&analysis.url)
+    .bind(&analysis.language)
+    .bind(&analysis.title)
+    .bind(&analysis.canonical_url)
+    .bind(&analysis.content_text)
+    .fetch_one(pool)
+    .await?;
 
-    for meta in &analysis.meta_tags {
-        client
-            .execute(
-                &statements.insert_meta,
-                &[&analysis_id, &meta.name, &meta.content],
-            )
-            .await?;
-    }
+    // Batch insert using JSON
+    sqlx::query(
+        r#"
+        INSERT INTO meta_tags (analysis_id, name, content)
+        SELECT $1, (elem->>'name')::text, (elem->>'content')::text
+        FROM jsonb_array_elements($2::jsonb) AS elem
+        "#,
+    )
+    .bind(analysis_id)
+    .bind(serde_json::to_value(&analysis.meta_tags)?)
+    .execute(pool)
+    .await?;
 
-    println!("Saved analysis for {}", analysis.url);
     Ok(())
 }
