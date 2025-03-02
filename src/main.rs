@@ -1,103 +1,139 @@
 mod db;
 mod meta_tags;
+mod proxy;
 
 use std::collections::HashSet;
+use std::fs;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
+use meta_tags::META_SELECTORS;
 use reqwest;
 use scraper::{Html, Selector};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, Semaphore};
+use tokio_stream::wrappers::UnboundedReceiverStream;
 use url::Url;
 
 use crate::db::{create_db_pool, save_analysis, MetaTag, SeoAnalysis};
-use crate::meta_tags::META_SELECTORS;
+use crate::proxy::ProxyManager;
+use futures::stream::StreamExt;
+
+const MAX_PAGES: usize = 100000;
+const CONCURRENCY: usize = 1000;
+const DB_CONCURRENCY: usize = 20;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let initial_url = "https://nytimes.com";
+    let sites_file = fs::read_to_string("data/sites.txt")?;
+    let seeds: Vec<String> = sites_file
+        .lines()
+        .map(|line| line.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
 
+    let proxy_manager = ProxyManager::new("data/proxies.txt")?;
     let pool = create_db_pool().await?;
     let visited = Arc::new(Mutex::new(HashSet::new()));
+    let pages_count = Arc::new(AtomicUsize::new(0));
+    let db_semaphore = Arc::new(Semaphore::new(DB_CONCURRENCY));
 
-    let (main_links, main_analysis) = process_page(initial_url, &pool).await?;
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    let tx = Arc::new(tx);
 
-    let document = Html::parse_document(&reqwest::get(initial_url).await?.text().await?);
-    let a_selector = Selector::parse("a").unwrap();
-    let a_tags_count = document.select(&a_selector).count();
+    {
+        let mut visited_lock = visited.lock().await;
+        for seed in seeds {
+            if visited_lock.insert(seed.clone()) {
+                tx.send(seed).expect("failed to enqueue seed URL");
+            }
+        }
+    }
+
     println!(
-        "Total <a> tags on root page {}: {}",
-        initial_url, a_tags_count
+        "Starting concurrent crawl with a page limit of {} pages...",
+        MAX_PAGES
     );
 
-    save_analysis(&pool, &main_analysis).await?;
-    println!("Main page processed: {}", initial_url);
+    let rx_stream = UnboundedReceiverStream::new(rx);
 
-    let max_pages = 700;
-
-    let limit = max_pages - 1;
-    let total_links = main_links.len().min(limit);
-
-    println!("Processing {} child pages concurrently...", total_links);
-
-    use futures::stream::{self, StreamExt};
-
-    let progress = Arc::new(AtomicUsize::new(0));
-
-    stream::iter(main_links)
-        .filter_map(|url| {
-            let visited = visited.clone();
-            async move {
-                let mut visited_lock = visited.lock().await;
-                if visited_lock.insert(url.clone()) {
-                    Some(url)
-                } else {
-                    None
-                }
-            }
-        })
-        .take(limit)
-        .for_each_concurrent(500, |url| {
+    rx_stream
+        .for_each_concurrent(CONCURRENCY, |url: String| {
             let pool = pool.clone();
-            let progress = progress.clone();
+            let proxy_manager = proxy_manager.clone();
+            let visited = Arc::clone(&visited);
+            let pages_count = Arc::clone(&pages_count);
+            let tx = Arc::clone(&tx);
+            let db_semaphore = Arc::clone(&db_semaphore);
+
             async move {
-                let current = progress.fetch_add(1, Ordering::Relaxed) + 1;
-                print_progress(current, total_links, &url);
-                if let Err(e) = process_page(&url, &pool).await {
-                    // eprintln!("Error processing {}: {}", url, e);
+                let current_count = pages_count.fetch_add(1, Ordering::Relaxed) + 1;
+
+                if current_count > MAX_PAGES {
+                    return;
+                }
+                print_progress(current_count, MAX_PAGES, &url);
+
+                match process_page(&url, &pool, &proxy_manager, &db_semaphore).await {
+                    Ok((child_links, _analysis)) => {
+                        for link in child_links {
+                            let mut visited_lock = visited.lock().await;
+                            if visited_lock.insert(link.clone()) {
+                                drop(visited_lock);
+                                if tx.send(link).is_err() {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Error processing {}: {:?}", url, e);
+                    }
                 }
             }
         })
         .await;
 
-    let processed = progress.load(Ordering::Relaxed) + 1;
-    println!("\nProcessed {} pages total", processed);
+    let total_processed = pages_count.load(Ordering::Relaxed);
+    println!("\nProcessed {} pages total", total_processed);
 
     Ok(())
 }
+
 async fn process_page(
     url: &str,
     pool: &sqlx::PgPool,
+    proxy_manager: &ProxyManager,
+    db_semaphore: &Semaphore,
 ) -> Result<(Vec<String>, SeoAnalysis), Box<dyn std::error::Error>> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(3))
-        .build()?;
+    let mut client_builder = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30));
 
+    if let Some((proxy, username, password)) = proxy_manager.get_next_proxy() {
+        client_builder =
+            client_builder.proxy(reqwest::Proxy::all(&proxy)?.basic_auth(&username, &password));
+    }
+
+    let client = client_builder.build()?;
     let response = client.get(url).send().await?;
-
-    let response = match response.text().await {
+    let text = match response.text().await {
         Ok(text) => text,
         Err(e) => {
             println!("Error decoding response for {}: {:?}", url, e);
             return Err(Box::new(e));
         }
     };
-    let document = Html::parse_document(&response);
+    let document = Html::parse_document(&text);
 
     let analysis = analyze_document(&document, url);
     let links = extract_links(&document, url);
 
-    save_analysis(pool, &analysis).await?;
+    let _permit = db_semaphore.acquire().await.unwrap();
+    match save_analysis(pool, &analysis).await {
+        Ok(_) => (),
+        Err(e) => {
+            println!("Database error for {}: {:?}", url, e);
+        }
+    }
+
     Ok((links, analysis))
 }
 

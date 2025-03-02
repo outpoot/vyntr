@@ -1,3 +1,4 @@
 /target
 .env
 sample.html
+tools/node_modules

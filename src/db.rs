@@ -2,6 +2,7 @@ use serde::Serialize;
 use serde_json;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::env;
+use std::time::Duration;
 
 #[derive(Debug, Serialize)]
 pub struct SeoAnalysis {
@@ -23,7 +24,9 @@ pub async fn create_db_pool() -> Result<PgPool, Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
     let database_url = env::var("DATABASE_URL")?;
     let pool = PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(20)
+        .acquire_timeout(Duration::from_secs(30))
+        .idle_timeout(Duration::from_secs(600))
         .connect(&database_url)
         .await?;
 

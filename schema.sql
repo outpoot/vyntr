@@ -1,3 +1,6 @@
+DROP TABLE "meta_tags";
+DROP TABLE "sites";
+
 CREATE TABLE sites (
     id SERIAL PRIMARY KEY,
     url TEXT NOT NULL,
