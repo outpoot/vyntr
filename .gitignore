@@ -2,3 +2,5 @@
 .env
 sample.html
 tools/node_modules
+tools/proxies.txt
+/data/
