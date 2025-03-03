@@ -6,6 +6,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::Mutex as StdMutex;
 
 use meta_tags::META_SELECTORS;
 use reqwest;
@@ -14,13 +15,14 @@ use tokio::sync::{Mutex, Semaphore};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use url::Url;
 
-use crate::db::{create_db_pool, save_analysis, MetaTag, SeoAnalysis};
+use crate::db::{create_db_pool, save_analyses_batch, MetaTag, SeoAnalysis};
 use crate::proxy::ProxyManager;
 use futures::stream::StreamExt;
 
-const MAX_PAGES: usize = 100000;
-const CONCURRENCY: usize = 1000;
+const MAX_PAGES: usize = 1000000;
+const CONCURRENCY: usize = 100000;
 const DB_CONCURRENCY: usize = 20;
+const BATCH_SIZE: usize = 10000;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -36,6 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let visited = Arc::new(Mutex::new(HashSet::new()));
     let pages_count = Arc::new(AtomicUsize::new(0));
     let db_semaphore = Arc::new(Semaphore::new(DB_CONCURRENCY));
+    let pending_analyses = Arc::new(StdMutex::new(Vec::new()));
 
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     let tx = Arc::new(tx);
@@ -64,6 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let pages_count = Arc::clone(&pages_count);
             let tx = Arc::clone(&tx);
             let db_semaphore = Arc::clone(&db_semaphore);
+            let pending_analyses = Arc::clone(&pending_analyses);
 
             async move {
                 let current_count = pages_count.fetch_add(1, Ordering::Relaxed) + 1;
@@ -73,8 +77,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 print_progress(current_count, MAX_PAGES, &url);
 
-                match process_page(&url, &pool, &proxy_manager, &db_semaphore).await {
-                    Ok((child_links, _analysis)) => {
+                match process_page(&url, &proxy_manager).await {
+                    Ok((child_links, analysis)) => {
+                        {
+                            let mut analyses = pending_analyses.lock().unwrap();
+                            analyses.push(analysis);
+                            println!("Analysed: {}", analyses.len());
+
+                            if analyses.len() >= BATCH_SIZE {
+                                println!("Saving batch of {} analyses...", BATCH_SIZE);
+
+                                let analyses_to_save: Vec<SeoAnalysis> =
+                                    analyses.drain(..).collect();
+                                drop(analyses);
+
+                                let _permit = db_semaphore.acquire().await.unwrap();
+                                if let Err(e) = save_analyses_batch(&pool, &analyses_to_save).await
+                                {
+                                    eprintln!("Error saving batch: {:?}", e);
+                                }
+                            }
+                        }
+
                         for link in child_links {
                             let mut visited_lock = visited.lock().await;
                             if visited_lock.insert(link.clone()) {
@@ -93,6 +117,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .await;
 
+    let final_analyses = {
+        let mut analyses = pending_analyses.lock().unwrap();
+        analyses.drain(..).collect::<Vec<_>>()
+    };
+
+    if !final_analyses.is_empty() {
+        if let Err(e) = save_analyses_batch(&pool, &final_analyses).await {
+            eprintln!("Error saving final batch: {:?}", e);
+        }
+    }
+
     let total_processed = pages_count.load(Ordering::Relaxed);
     println!("\nProcessed {} pages total", total_processed);
 
@@ -101,9 +136,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn process_page(
     url: &str,
-    pool: &sqlx::PgPool,
     proxy_manager: &ProxyManager,
-    db_semaphore: &Semaphore,
 ) -> Result<(Vec<String>, SeoAnalysis), Box<dyn std::error::Error>> {
     let mut client_builder = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30));
 
@@ -125,14 +158,6 @@ async fn process_page(
 
     let analysis = analyze_document(&document, url);
     let links = extract_links(&document, url);
-
-    let _permit = db_semaphore.acquire().await.unwrap();
-    match save_analysis(pool, &analysis).await {
-        Ok(_) => (),
-        Err(e) => {
-            println!("Database error for {}: {:?}", url, e);
-        }
-    }
 
     Ok((links, analysis))
 }
@@ -187,9 +212,19 @@ fn analyze_document(document: &Html, url: &str) -> SeoAnalysis {
     // ====== CONTENT TEXT EXTRACTION ======
     let content_selector = Selector::parse("h1, h2, h3, h4, h5, h6, p, li").unwrap();
     for element in document.select(&content_selector) {
-        let text = element.text().collect::<String>();
-        analysis.content_text.push_str(&text);
-        analysis.content_text.push('\n');
+        let text = element
+            .text()
+            .collect::<String>()
+            .split_whitespace()
+            .collect::<Vec<&str>>()
+            .join(" ");
+        if !text.is_empty() {
+            if !analysis.content_text.is_empty() {
+                analysis.content_text.push(' ');
+            }
+            analysis.content_text.push_str(&text);
+        }
+        // println!("Content: {}", analysis.content_text);
     }
 
     analysis

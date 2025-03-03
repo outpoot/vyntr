@@ -1,6 +1,7 @@
 use serde::Serialize;
 use serde_json;
 use sqlx::postgres::{PgPool, PgPoolOptions};
+use sqlx::Row;
 use std::env;
 use std::time::Duration;
 
@@ -33,38 +34,60 @@ pub async fn create_db_pool() -> Result<PgPool, Box<dyn std::error::Error>> {
     Ok(pool)
 }
 
-pub async fn save_analysis(
+pub async fn save_analyses_batch(
     pool: &PgPool,
-    analysis: &SeoAnalysis,
+    analyses: &[SeoAnalysis],
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Use raw SQL queries without prepared statements
-    let analysis_id: i32 = sqlx::query_scalar(
+    let mut tx = pool.begin().await?;
+
+    let rows = sqlx::query(
         r#"
         INSERT INTO sites (url, language, title, canonical_url, content_text)
-        VALUES ($1, $2, $3, $4, $5)
+        SELECT 
+            s.url, s.language, s.title, s.canonical_url, s.content_text
+        FROM jsonb_to_recordset($1::jsonb) AS s(
+            url text,
+            language text,
+            title text,
+            canonical_url text,
+            content_text text
+        )
         RETURNING id
         "#,
     )
-    .bind(&analysis.url)
-    .bind(&analysis.language)
-    .bind(&analysis.title)
-    .bind(&analysis.canonical_url)
-    .bind(&analysis.content_text)
-    .fetch_one(pool)
+    .bind(serde_json::to_value(analyses)?)
+    .fetch_all(&mut *tx)
     .await?;
 
-    // Batch insert using JSON
-    sqlx::query(
-        r#"
-        INSERT INTO meta_tags (analysis_id, name, content)
-        SELECT $1, (elem->>'name')::text, (elem->>'content')::text
-        FROM jsonb_array_elements($2::jsonb) AS elem
-        "#,
-    )
-    .bind(analysis_id)
-    .bind(serde_json::to_value(&analysis.meta_tags)?)
-    .execute(pool)
-    .await?;
+    let site_ids: Vec<i32> = rows.iter().map(|row| row.get("id")).collect();
+
+    let mut all_meta_tags = Vec::new();
+    for (idx, analysis) in analyses.iter().enumerate() {
+        for meta_tag in &analysis.meta_tags {
+            all_meta_tags.push(serde_json::json!({
+                "analysis_id": site_ids[idx],
+                "name": meta_tag.name,
+                "content": meta_tag.content
+            }));
+        }
+    }
+
+    if !all_meta_tags.is_empty() {
+        sqlx::query(
+            r#"
+            INSERT INTO meta_tags (analysis_id, name, content)
+            SELECT 
+                (elem->>'analysis_id')::integer,
+                (elem->>'name')::text,
+                (elem->>'content')::text
+            FROM jsonb_array_elements($1::jsonb) AS elem
+            "#,
+        )
+        .bind(serde_json::to_value(all_meta_tags)?)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
 
     Ok(())
 }
