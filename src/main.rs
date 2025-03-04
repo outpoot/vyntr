@@ -138,10 +138,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         }
                     }
-                    Err(e) => eprintln!(
-                        "[{}/{}] Error processing {}: {:?}",
-                        current_count, MAX_PAGES, url, e
-                    ),
+                    Err(e) => {
+                        eprintln!(
+                            "[{}/{}] Error processing {}: {:?}",
+                            current_count, MAX_PAGES, url, e
+                        )
+                    }
                 }
             }
         })
@@ -179,46 +181,29 @@ async fn process_page(
 ) -> Result<(Vec<String>, SeoAnalysis), Box<dyn std::error::Error>> {
     rate_limiter.acquire_one().await;
 
-    let proxy = match proxy_manager.get_next_proxy() {
-        Some(proxy) => proxy,
-        _ => return Err("No proxy available".into()),
-    };
+    let proxy = proxy_manager.get_next_proxy().ok_or("No proxy available")?;
 
-    let fingerprint = RequestFingerprint::new(&proxy.ip, url);
+    let fp = RequestFingerprint::new(&proxy.ip, url);
 
-    let mut client_builder = reqwest::Client::builder()
-        .user_agent(&fingerprint.user_agent)
-        .timeout(std::time::Duration::from_secs(30));
+    let client = reqwest::Client::builder()
+        .user_agent(&fp.user_agent)
+        .referer(fp.referrer.is_some())
+        .proxy(reqwest::Proxy::all(&proxy.addr)?.basic_auth(&proxy.username, &proxy.password))
+        .timeout(std::time::Duration::from_secs(30))
+        .build()?;
 
-    if fingerprint.http_version == "HTTP/3" {
-        client_builder = client_builder.tls_sni(true);
-    } else if fingerprint.http_version == "HTTP/2" {
-        client_builder = client_builder.http2_prior_knowledge();
-    }
+    let response = client.get(url).send().await.map_err(|e| {
+        eprintln!("Request failed: {}", e);
+        e
+    })?;
 
-    if let Some(ref referrer) = fingerprint.referrer {
-        let mut headers = reqwest::header::HeaderMap::new();
-        headers.insert(reqwest::header::REFERER, referrer.parse()?);
-        client_builder = client_builder.default_headers(headers);
-    }
-
-    client_builder = client_builder
-        .proxy(reqwest::Proxy::all(&proxy.addr)?.basic_auth(&proxy.username, &proxy.password));
-
-    let client = client_builder.build()?;
-    let response = client.get(url).send().await?;
-    let text = match response.text().await {
-        Ok(text) => text,
-        Err(e) => {
-            return Err(Box::new(e));
-        }
-    };
+    let text = response.text().await?;
     let document = Html::parse_document(&text);
 
-    let analysis = analyze_document(&document, url);
-    let links = extract_links(&document, url);
-
-    Ok((links, analysis))
+    Ok((
+        extract_links(&document, url),
+        analyze_document(&document, url),
+    ))
 }
 
 fn analyze_document(document: &Html, url: &str) -> SeoAnalysis {
@@ -289,6 +274,17 @@ fn analyze_document(document: &Html, url: &str) -> SeoAnalysis {
     analysis
 }
 
+fn is_ignored_file_type(url: &str) -> bool {
+    let extensions = [
+        ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg", 
+        ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+        ".zip", ".rar", ".tar", ".gz", ".mp3", ".mp4", ".avi", ".mov"
+    ];
+    
+    let url_lower = url.to_lowercase();
+    extensions.iter().any(|&ext| url_lower.ends_with(ext))
+}
+
 fn extract_links(document: &Html, base_url: &str) -> Vec<String> {
     let mut links = Vec::new();
     let base_url = match Url::parse(base_url) {
@@ -301,7 +297,8 @@ fn extract_links(document: &Html, base_url: &str) -> Vec<String> {
             if let Some(href) = element.value().attr("href") {
                 if let Ok(mut parsed_url) = base_url.join(href) {
                     parsed_url.set_fragment(None);
-                    if parsed_url.scheme() == "http" || parsed_url.scheme() == "https" {
+                    if (parsed_url.scheme() == "http" || parsed_url.scheme() == "https") 
+                        && !is_ignored_file_type(&parsed_url.path()) {
                         links.push(parsed_url.to_string());
                     }
                 }
