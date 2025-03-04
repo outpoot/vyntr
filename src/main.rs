@@ -11,6 +11,9 @@ use std::time::Instant;
 
 use leaky_bucket::RateLimiter;
 use meta_tags::META_SELECTORS;
+use rand::rngs::StdRng;
+use rand::seq::SliceRandom;
+use rand::SeedableRng;
 use reqwest;
 use scraper::{Html, Selector};
 use tokio::sync::{Mutex, Semaphore};
@@ -23,9 +26,9 @@ use crate::proxy::ProxyManager;
 use futures::stream::StreamExt;
 
 const MAX_PAGES: usize = 1_000_000;
-const CONCURRENCY: usize = 100000;
+const CONCURRENCY: usize = 100_000;
 const DB_CONCURRENCY: usize = 20;
-const BATCH_SIZE: usize = 5000;
+const BATCH_SIZE: usize = 2_000;
 const MAX_REQUESTS_PER_SECOND: usize = 1000;
 
 #[tokio::main]
@@ -44,25 +47,64 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db_semaphore = Arc::new(Semaphore::new(DB_CONCURRENCY));
     let pending_analyses = Arc::new(Mutex::new(Vec::new()));
 
-    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<String>();
-    let tx = Arc::new(tx);
+    // Channel setup
+    let (discovered_tx, mut discovered_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (processing_tx, processing_rx) = tokio::sync::mpsc::unbounded_channel();
+    let discovered_tx = Arc::new(discovered_tx);
+    let processing_tx = Arc::new(processing_tx);
 
+    // Batch processing task
+    let batch_task = tokio::spawn({
+        let processing_tx = processing_tx.clone();
+        async move {
+            let mut buffer = Vec::with_capacity(BATCH_SIZE);
+            let mut rng = StdRng::from_os_rng();
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
+
+            loop {
+                tokio::select! {
+                    // Receive new URLs
+                    Some(link) = discovered_rx.recv() => {
+                        buffer.push(link);
+
+                        if buffer.len() >= BATCH_SIZE {
+                            buffer.shuffle(&mut rng);
+                            for link in buffer.drain(..) {
+                                if processing_tx.send(link).is_err() {
+                                    return;
+                                }
+                            }
+                        }
+                    },
+                    // Flush periodically
+                    _ = interval.tick() => {
+                        if !buffer.is_empty() {
+                            buffer.shuffle(&mut rng);
+                            for link in buffer.drain(..) {
+                                let _ = processing_tx.send(link);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Seed initialization
     {
         let mut visited_lock = visited.lock().await;
         for seed in seeds {
             if visited_lock.insert(seed.clone()) {
-                tx.send(seed).expect("failed to enqueue seed URL");
+                discovered_tx
+                    .send(seed)
+                    .expect("Failed to enqueue seed URL");
             }
         }
     }
 
-    println!(
-        "Starting concurrent crawl with a page limit of {} pages...",
-        MAX_PAGES
-    );
+    println!("Starting crawl with limit of {} pages...", MAX_PAGES);
 
     let start_time = Instant::now();
-
     let rate_limiter = Arc::new(
         RateLimiter::builder()
             .max(MAX_REQUESTS_PER_SECOND)
@@ -72,103 +114,98 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .build(),
     );
 
-    let pause_flag: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    let pause_flag = Arc::new(AtomicBool::new(false));
 
-    let rx_stream = UnboundedReceiverStream::new(rx);
-
-    rx_stream
-        .for_each_concurrent(CONCURRENCY, |url: String| {
+    UnboundedReceiverStream::new(processing_rx)
+        .for_each_concurrent(CONCURRENCY, |url| {
             let pool = pool.clone();
             let proxy_manager = proxy_manager.clone();
-            let visited = Arc::clone(&visited);
-            let pages_count = Arc::clone(&pages_count);
-            let tx = Arc::clone(&tx);
-            let db_semaphore = Arc::clone(&db_semaphore);
-            let pending_analyses = Arc::clone(&pending_analyses);
-            let rate_limiter = Arc::clone(&rate_limiter);
-            let pause_flag = Arc::clone(&pause_flag);
+            let visited = visited.clone();
+            let pages_count = pages_count.clone();
+            let discovered_tx = discovered_tx.clone();
+            let pending_analyses = pending_analyses.clone();
+            let rate_limiter = rate_limiter.clone();
+            let pause_flag = pause_flag.clone();
 
-            async move {
-                let current_count = pages_count.fetch_add(1, Ordering::Relaxed) + 1;
-
-                if current_count > MAX_PAGES {
-                    return;
-                }
-
-                let result = process_page(&url, &proxy_manager, &rate_limiter).await;
-
-                let should_pause = current_count % 3000 == 0;
-
-                if should_pause {
-                    println!("=============== Pausing for batch save ===============");
-                    pause_flag.store(true, Ordering::SeqCst);
-
-                    let mut analyses = pending_analyses.lock().await;
-                    if !analyses.is_empty() {
-                        let analyses_to_save: Vec<SeoAnalysis> = analyses.drain(..).collect();
-                        let _permit = db_semaphore.acquire().await;
-                        if let Err(e) = save_analyses_batch(&pool, &analyses_to_save).await {
-                            eprintln!("Batch save error: {:?}", e);
-                        }
+            {
+                let db_semaphore = db_semaphore.clone();
+                async move {
+                    let current_count = pages_count.fetch_add(1, Ordering::Relaxed) + 1;
+                    if current_count > MAX_PAGES {
+                        return;
                     }
 
-                    pause_flag.store(false, Ordering::SeqCst);
-                }
+                    println!("[{}/{}] URL: {}", current_count, MAX_PAGES, url);
 
-                match result {
-                    Ok((child_links, analysis)) => {
-                        let mut analyses = pending_analyses.lock().await;
-                        analyses.push(analysis);
+                    match process_page(&url, &proxy_manager, &rate_limiter).await {
+                        Ok((child_links, analysis)) => {
+                            // Store analysis
+                            let mut analyses = pending_analyses.lock().await;
+                            analyses.push(analysis);
 
-                        if analyses.len() >= BATCH_SIZE {
-                            let analyses_to_save: Vec<SeoAnalysis> =
-                                analyses.drain(..BATCH_SIZE).collect();
-                            let _permit = db_semaphore.acquire().await;
-                            if let Err(e) = save_analyses_batch(&pool, &analyses_to_save).await {
-                                eprintln!("Batch save error: {:?}", e);
+                            // Batch save logic
+                            if analyses.len() >= BATCH_SIZE {
+                                let analyses_to_save: Vec<SeoAnalysis> =
+                                    analyses.drain(..BATCH_SIZE).collect();
+                                let _permit = db_semaphore.acquire().await;
+                                if let Err(e) = save_analyses_batch(&pool, &analyses_to_save).await
+                                {
+                                    eprintln!("Batch save error: {:?}", e);
+                                }
                             }
-                        }
 
-                        if !pause_flag.load(Ordering::SeqCst) {
-                            for link in child_links {
-                                let mut visited_lock = visited.lock().await;
-                                if visited_lock.insert(link.clone()) {
-                                    let _ = tx.send(link);
+                            // Add new links to discovery queue
+                            if !pause_flag.load(Ordering::SeqCst) {
+                                for link in child_links {
+                                    let mut visited_lock = visited.lock().await;
+                                    if visited_lock.insert(link.clone()) {
+                                        let _ = discovered_tx.send(link);
+                                    }
                                 }
                             }
                         }
+                        Err(e) => {
+                            eprintln!("Error processing {}: {:?}", url, e);
+                        }
                     }
-                    Err(e) => {
-                        eprintln!(
-                            "[{}/{}] Error processing {}: {:?}",
-                            current_count, MAX_PAGES, url, e
-                        )
+
+                    // Periodic pause and save
+                    if current_count % 3000 == 0 {
+                        println!("======== Pausing for batch save ========");
+                        pause_flag.store(true, Ordering::SeqCst);
+
+                        let mut analyses = pending_analyses.lock().await;
+                        if !analyses.is_empty() {
+                            let analyses_to_save: Vec<SeoAnalysis> = analyses.drain(..).collect();
+                            let _permit = db_semaphore.acquire().await;
+                            if let Err(e) = save_analyses_batch(&pool, &analyses_to_save).await {
+                                eprintln!("Final batch save error: {:?}", e);
+                            }
+                        }
+
+                        pause_flag.store(false, Ordering::SeqCst);
                     }
                 }
             }
         })
         .await;
 
-    let final_analyses = {
-        let mut analyses = pending_analyses.lock().await;
-        analyses.drain(..).collect::<Vec<_>>()
-    };
+    batch_task.await?;
 
+    // Final save
+    let final_analyses = pending_analyses.lock().await.drain(..).collect::<Vec<_>>();
     if !final_analyses.is_empty() {
-        if let Err(e) = save_analyses_batch(&pool, &final_analyses).await {
-            eprintln!("Error saving final batch: {:?}", e);
-        }
+        save_analyses_batch(&pool, &final_analyses).await?;
     }
 
+    // Statistics
     let total_processed = pages_count.load(Ordering::Relaxed);
     let elapsed = start_time.elapsed();
-    let requests_per_second = total_processed as f64 / elapsed.as_secs_f64();
-
-    println!("\nProcessed {} pages total", total_processed);
-    println!("Time elapsed: {:.2} seconds", elapsed.as_secs_f64());
     println!(
-        "Average request rate: {:.2} requests/second",
-        requests_per_second
+        "\nProcessed {} pages in {:.2} seconds ({:.2}/sec)",
+        total_processed,
+        elapsed.as_secs_f64(),
+        total_processed as f64 / elapsed.as_secs_f64()
     );
 
     Ok(())
@@ -182,7 +219,6 @@ async fn process_page(
     rate_limiter.acquire_one().await;
 
     let proxy = proxy_manager.get_next_proxy().ok_or("No proxy available")?;
-
     let fp = RequestFingerprint::new(&proxy.ip, url);
 
     let client = reqwest::Client::builder()
@@ -192,11 +228,7 @@ async fn process_page(
         .timeout(std::time::Duration::from_secs(30))
         .build()?;
 
-    let response = client.get(url).send().await.map_err(|e| {
-        eprintln!("Request failed: {}", e);
-        e
-    })?;
-
+    let response = client.get(url).send().await?;
     let text = response.text().await?;
     let document = Html::parse_document(&text);
 
@@ -276,11 +308,10 @@ fn analyze_document(document: &Html, url: &str) -> SeoAnalysis {
 
 fn is_ignored_file_type(url: &str) -> bool {
     let extensions = [
-        ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg", 
-        ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-        ".zip", ".rar", ".tar", ".gz", ".mp3", ".mp4", ".avi", ".mov"
+        ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg", ".pdf", ".doc", ".docx", ".xls",
+        ".xlsx", ".ppt", ".pptx", ".zip", ".rar", ".tar", ".gz", ".mp3", ".mp4", ".avi", ".mov",
     ];
-    
+
     let url_lower = url.to_lowercase();
     extensions.iter().any(|&ext| url_lower.ends_with(ext))
 }
@@ -297,8 +328,9 @@ fn extract_links(document: &Html, base_url: &str) -> Vec<String> {
             if let Some(href) = element.value().attr("href") {
                 if let Ok(mut parsed_url) = base_url.join(href) {
                     parsed_url.set_fragment(None);
-                    if (parsed_url.scheme() == "http" || parsed_url.scheme() == "https") 
-                        && !is_ignored_file_type(&parsed_url.path()) {
+                    if (parsed_url.scheme() == "http" || parsed_url.scheme() == "https")
+                        && !is_ignored_file_type(&parsed_url.path())
+                    {
                         links.push(parsed_url.to_string());
                     }
                 }
