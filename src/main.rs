@@ -1,12 +1,12 @@
 mod db;
+mod fingerprint;
 mod meta_tags;
 mod proxy;
 
 use std::collections::HashSet;
 use std::fs;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::sync::Mutex as StdMutex;
 use std::time::Instant;
 
 use leaky_bucket::RateLimiter;
@@ -18,6 +18,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use url::Url;
 
 use crate::db::{create_db_pool, save_analyses_batch, MetaTag, SeoAnalysis};
+use crate::fingerprint::RequestFingerprint;
 use crate::proxy::ProxyManager;
 use futures::stream::StreamExt;
 
@@ -25,7 +26,7 @@ const MAX_PAGES: usize = 1_000_000;
 const CONCURRENCY: usize = 100000;
 const DB_CONCURRENCY: usize = 20;
 const BATCH_SIZE: usize = 5000;
-const MAX_REQUESTS_PER_SECOND: usize = 300; // Add this new constant
+const MAX_REQUESTS_PER_SECOND: usize = 1000;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -41,7 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let visited = Arc::new(Mutex::new(HashSet::new()));
     let pages_count = Arc::new(AtomicUsize::new(0));
     let db_semaphore = Arc::new(Semaphore::new(DB_CONCURRENCY));
-    let pending_analyses = Arc::new(StdMutex::new(Vec::new()));
+    let pending_analyses = Arc::new(Mutex::new(Vec::new()));
 
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     let tx = Arc::new(tx);
@@ -71,6 +72,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .build(),
     );
 
+    let pause_flag: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+
     let rx_stream = UnboundedReceiverStream::new(rx);
 
     rx_stream
@@ -83,6 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let db_semaphore = Arc::clone(&db_semaphore);
             let pending_analyses = Arc::clone(&pending_analyses);
             let rate_limiter = Arc::clone(&rate_limiter);
+            let pause_flag = Arc::clone(&pause_flag);
 
             async move {
                 let current_count = pages_count.fetch_add(1, Ordering::Relaxed) + 1;
@@ -90,50 +94,61 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if current_count > MAX_PAGES {
                     return;
                 }
-                print_progress(current_count, MAX_PAGES, &url);
 
-                match process_page(&url, &proxy_manager, &rate_limiter).await {
+                let result = process_page(&url, &proxy_manager, &rate_limiter).await;
+
+                let should_pause = current_count % 3000 == 0;
+
+                if should_pause {
+                    println!("=============== Pausing for batch save ===============");
+                    pause_flag.store(true, Ordering::SeqCst);
+
+                    let mut analyses = pending_analyses.lock().await;
+                    if !analyses.is_empty() {
+                        let analyses_to_save: Vec<SeoAnalysis> = analyses.drain(..).collect();
+                        let _permit = db_semaphore.acquire().await;
+                        if let Err(e) = save_analyses_batch(&pool, &analyses_to_save).await {
+                            eprintln!("Batch save error: {:?}", e);
+                        }
+                    }
+
+                    pause_flag.store(false, Ordering::SeqCst);
+                }
+
+                match result {
                     Ok((child_links, analysis)) => {
-                        {
-                            let mut analyses = pending_analyses.lock().unwrap();
-                            analyses.push(analysis);
-                            println!("Analysed: {}", analyses.len());
+                        let mut analyses = pending_analyses.lock().await;
+                        analyses.push(analysis);
 
-                            if analyses.len() >= BATCH_SIZE {
-                                println!("Saving batch of {} analyses...", BATCH_SIZE);
-
-                                let analyses_to_save: Vec<SeoAnalysis> =
-                                    analyses.drain(..).collect();
-                                drop(analyses);
-
-                                let _permit = db_semaphore.acquire().await.unwrap();
-                                if let Err(e) = save_analyses_batch(&pool, &analyses_to_save).await
-                                {
-                                    eprintln!("Error saving batch: {:?}", e);
-                                }
+                        if analyses.len() >= BATCH_SIZE {
+                            let analyses_to_save: Vec<SeoAnalysis> =
+                                analyses.drain(..BATCH_SIZE).collect();
+                            let _permit = db_semaphore.acquire().await;
+                            if let Err(e) = save_analyses_batch(&pool, &analyses_to_save).await {
+                                eprintln!("Batch save error: {:?}", e);
                             }
                         }
 
-                        for link in child_links {
-                            let mut visited_lock = visited.lock().await;
-                            if visited_lock.insert(link.clone()) {
-                                drop(visited_lock);
-                                if tx.send(link).is_err() {
-                                    break;
+                        if !pause_flag.load(Ordering::SeqCst) {
+                            for link in child_links {
+                                let mut visited_lock = visited.lock().await;
+                                if visited_lock.insert(link.clone()) {
+                                    let _ = tx.send(link);
                                 }
                             }
                         }
                     }
-                    Err(e) => {
-                        eprintln!("Error processing {}: {:?}", url, e);
-                    }
+                    Err(e) => eprintln!(
+                        "[{}/{}] Error processing {}: {:?}",
+                        current_count, MAX_PAGES, url, e
+                    ),
                 }
             }
         })
         .await;
 
     let final_analyses = {
-        let mut analyses = pending_analyses.lock().unwrap();
+        let mut analyses = pending_analyses.lock().await;
         analyses.drain(..).collect::<Vec<_>>()
     };
 
@@ -164,12 +179,31 @@ async fn process_page(
 ) -> Result<(Vec<String>, SeoAnalysis), Box<dyn std::error::Error>> {
     rate_limiter.acquire_one().await;
 
-    let mut client_builder = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30));
+    let proxy = match proxy_manager.get_next_proxy() {
+        Some(proxy) => proxy,
+        _ => return Err("No proxy available".into()),
+    };
 
-    if let Some((proxy, username, password)) = proxy_manager.get_next_proxy() {
-        client_builder =
-            client_builder.proxy(reqwest::Proxy::all(&proxy)?.basic_auth(&username, &password));
+    let fingerprint = RequestFingerprint::new(&proxy.ip, url);
+
+    let mut client_builder = reqwest::Client::builder()
+        .user_agent(&fingerprint.user_agent)
+        .timeout(std::time::Duration::from_secs(30));
+
+    if fingerprint.http_version == "HTTP/3" {
+        client_builder = client_builder.tls_sni(true);
+    } else if fingerprint.http_version == "HTTP/2" {
+        client_builder = client_builder.http2_prior_knowledge();
     }
+
+    if let Some(ref referrer) = fingerprint.referrer {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(reqwest::header::REFERER, referrer.parse()?);
+        client_builder = client_builder.default_headers(headers);
+    }
+
+    client_builder = client_builder
+        .proxy(reqwest::Proxy::all(&proxy.addr)?.basic_auth(&proxy.username, &proxy.password));
 
     let client = client_builder.build()?;
     let response = client.get(url).send().await?;
@@ -276,8 +310,4 @@ fn extract_links(document: &Html, base_url: &str) -> Vec<String> {
     }
 
     links
-}
-
-fn print_progress(current: usize, total: usize, url: &str) {
-    println!("[{}/{}] Processing {}", current, total, url);
 }
