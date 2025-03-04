@@ -7,7 +7,9 @@ use std::fs;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex as StdMutex;
+use std::time::Instant;
 
+use leaky_bucket::RateLimiter;
 use meta_tags::META_SELECTORS;
 use reqwest;
 use scraper::{Html, Selector};
@@ -19,10 +21,11 @@ use crate::db::{create_db_pool, save_analyses_batch, MetaTag, SeoAnalysis};
 use crate::proxy::ProxyManager;
 use futures::stream::StreamExt;
 
-const MAX_PAGES: usize = 1000000;
+const MAX_PAGES: usize = 1_000_000;
 const CONCURRENCY: usize = 100000;
 const DB_CONCURRENCY: usize = 20;
-const BATCH_SIZE: usize = 10000;
+const BATCH_SIZE: usize = 5000;
+const MAX_REQUESTS_PER_SECOND: usize = 300; // Add this new constant
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -57,6 +60,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         MAX_PAGES
     );
 
+    let start_time = Instant::now();
+
+    let rate_limiter = Arc::new(
+        RateLimiter::builder()
+            .max(MAX_REQUESTS_PER_SECOND)
+            .initial(MAX_REQUESTS_PER_SECOND)
+            .refill(MAX_REQUESTS_PER_SECOND)
+            .interval(std::time::Duration::from_secs(1))
+            .build(),
+    );
+
     let rx_stream = UnboundedReceiverStream::new(rx);
 
     rx_stream
@@ -68,6 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let tx = Arc::clone(&tx);
             let db_semaphore = Arc::clone(&db_semaphore);
             let pending_analyses = Arc::clone(&pending_analyses);
+            let rate_limiter = Arc::clone(&rate_limiter);
 
             async move {
                 let current_count = pages_count.fetch_add(1, Ordering::Relaxed) + 1;
@@ -77,7 +92,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 print_progress(current_count, MAX_PAGES, &url);
 
-                match process_page(&url, &proxy_manager).await {
+                match process_page(&url, &proxy_manager, &rate_limiter).await {
                     Ok((child_links, analysis)) => {
                         {
                             let mut analyses = pending_analyses.lock().unwrap();
@@ -129,7 +144,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let total_processed = pages_count.load(Ordering::Relaxed);
+    let elapsed = start_time.elapsed();
+    let requests_per_second = total_processed as f64 / elapsed.as_secs_f64();
+
     println!("\nProcessed {} pages total", total_processed);
+    println!("Time elapsed: {:.2} seconds", elapsed.as_secs_f64());
+    println!(
+        "Average request rate: {:.2} requests/second",
+        requests_per_second
+    );
 
     Ok(())
 }
@@ -137,7 +160,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn process_page(
     url: &str,
     proxy_manager: &ProxyManager,
+    rate_limiter: &RateLimiter,
 ) -> Result<(Vec<String>, SeoAnalysis), Box<dyn std::error::Error>> {
+    rate_limiter.acquire_one().await;
+
     let mut client_builder = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30));
 
     if let Some((proxy, username, password)) = proxy_manager.get_next_proxy() {
@@ -150,7 +176,6 @@ async fn process_page(
     let text = match response.text().await {
         Ok(text) => text,
         Err(e) => {
-            println!("Error decoding response for {}: {:?}", url, e);
             return Err(Box::new(e));
         }
     };
