@@ -29,11 +29,11 @@ use crate::proxy::ProxyManager;
 use futures::stream::StreamExt;
 use tokio::time::Duration;
 
-const MAX_PAGES: usize = 1_000_000;
+const MAX_PAGES: usize = 200_000_000;
 const CONCURRENCY: usize = 100_000;
 const DB_CONCURRENCY: usize = 20;
 const BATCH_SIZE: usize = 2_000;
-const MAX_REQUESTS_PER_SECOND: usize = 300;
+const MAX_REQUESTS_PER_SECOND: usize = 5000;
 const MAX_TUNNEL_RETRIES: usize = 3;
 const LOG_BUFFER_SIZE: usize = 10000;
 
@@ -329,16 +329,22 @@ async fn try_tunnel_request(
     metrics.tunnel.fetch_add(1, Ordering::Relaxed);
 
     let original_url = url.to_string();
-    let tunnel_url = format!(
-        "{}{}:/{}",
-        *PROXY_TUNNEL_URL,
-        if original_url.starts_with("https") {
-            "https"
-        } else {
-            "http"
-        },
-        original_url.split("://").nth(1).unwrap_or("")
-    );
+
+    let parsed_url = if !url.contains("://") {
+        format!("http://{}", url)
+    } else {
+        url.to_string()
+    };
+
+    let url_parts: Vec<&str> = parsed_url.splitn(2, "://").collect();
+    if url_parts.len() != 2 {
+        return Err("Invalid URL format".into());
+    }
+
+    let scheme = url_parts[0];
+    let rest = url_parts[1];
+
+    let tunnel_url = format!("{}{}:/{}", *PROXY_TUNNEL_URL, scheme, rest);
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
