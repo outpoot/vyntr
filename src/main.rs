@@ -27,10 +27,11 @@ use crate::fingerprint::RequestFingerprint;
 use crate::logger::AsyncLogger;
 use crate::proxy::ProxyManager;
 use futures::stream::StreamExt;
-use tokio::time::Duration; // <-- added
+use tokio::time::Duration;
 
 const MAX_PAGES: usize = 1_000_000;
 const CONCURRENCY: usize = 100_000;
+const DB_CONCURRENCY: usize = 20;
 const BATCH_SIZE: usize = 2_000;
 const MAX_REQUESTS_PER_SECOND: usize = 1000;
 const MAX_TUNNEL_RETRIES: usize = 3;
@@ -41,9 +42,71 @@ lazy_static::lazy_static! {
         .expect("PROXY_TUNNEL_URL must be set in environment");
 }
 
+struct Metrics {
+    total: AtomicUsize,
+    tunnel: AtomicUsize,
+    proxy: AtomicUsize,
+    failed: AtomicUsize,
+}
+
+impl Default for Metrics {
+    fn default() -> Self {
+        Metrics {
+            total: AtomicUsize::new(0),
+            tunnel: AtomicUsize::new(0),
+            proxy: AtomicUsize::new(0),
+            failed: AtomicUsize::new(0),
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let logger = AsyncLogger::new(LOG_BUFFER_SIZE)?;
+
+    tokio::spawn({
+        let logger = logger.clone();
+        async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(5));
+            loop {
+                interval.tick().await;
+                let _ = logger.lock().await.flush();
+            }
+        }
+    });
+
+    let metrics = Arc::new(Metrics::default());
+    let start_time = Instant::now();
+    tokio::spawn({
+        let logger = logger.clone();
+        let metrics = metrics.clone();
+        async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(5));
+            loop {
+                interval.tick().await;
+                let elapsed = start_time.elapsed().as_secs_f64();
+                let t_p_rate = if metrics.proxy.load(Ordering::Relaxed) > 0 {
+                    metrics.tunnel.load(Ordering::Relaxed) as f64
+                        / metrics.proxy.load(Ordering::Relaxed) as f64
+                } else {
+                    0.0
+                };
+
+                let metrics_str = format!(
+                    "[Metrics] Total: {}, Tunnel: {}, Proxy: {}, T-P Rate: {:.2}, Failed: {}, Rate: {:.2} req/sec",
+                    metrics.total.load(Ordering::Relaxed),
+                    metrics.tunnel.load(Ordering::Relaxed),
+                    metrics.proxy.load(Ordering::Relaxed),
+                    t_p_rate,
+                    metrics.failed.load(Ordering::Relaxed),
+                    metrics.total.load(Ordering::Relaxed) as f64 / elapsed
+                );
+                let mut log = logger.lock().await;
+                let _ = log.add_entry(metrics_str);
+                let _ = log.flush();
+            }
+        }
+    });
 
     let sites_file = fs::read_to_string("data/sites.txt")?;
     let seeds: Vec<String> = sites_file
@@ -59,13 +122,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db_semaphore = Arc::new(Semaphore::new(DB_CONCURRENCY));
     let pending_analyses = Arc::new(Mutex::new(Vec::new()));
 
-    // Channel setup
     let (discovered_tx, mut discovered_rx) = tokio::sync::mpsc::unbounded_channel();
     let (processing_tx, processing_rx) = tokio::sync::mpsc::unbounded_channel();
     let discovered_tx = Arc::new(discovered_tx);
     let processing_tx = Arc::new(processing_tx);
 
-    // Batch processing task
     let batch_task = tokio::spawn({
         let processing_tx = processing_tx.clone();
         async move {
@@ -75,7 +136,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             loop {
                 tokio::select! {
-                    // Receive new URLs
                     Some(link) = discovered_rx.recv() => {
                         buffer.push(link);
 
@@ -88,7 +148,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         }
                     },
-                    // Flush periodically
                     _ = interval.tick() => {
                         if !buffer.is_empty() {
                             buffer.shuffle(&mut rng);
@@ -102,7 +161,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Seed initialization
     {
         let mut visited_lock = visited.lock().await;
         for seed in seeds {
@@ -116,7 +174,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Starting crawl with limit of {} pages...", MAX_PAGES);
 
-    let start_time = Instant::now();
     let rate_limiter = Arc::new(
         RateLimiter::builder()
             .max(MAX_REQUESTS_PER_SECOND)
@@ -139,6 +196,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let rate_limiter = rate_limiter.clone();
             let pause_flag = pause_flag.clone();
             let logger = logger.clone();
+            let metrics = metrics.clone();
 
             {
                 let db_semaphore = db_semaphore.clone();
@@ -150,13 +208,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     //println!("[{}/{}] URL: {}", current_count, MAX_PAGES, url);
 
-                    match process_page(&url, &proxy_manager, &rate_limiter, &logger).await {
+                    match process_page(&url, &proxy_manager, &rate_limiter, &metrics).await {
                         Ok((child_links, analysis)) => {
-                            // Store analysis
                             let mut analyses = pending_analyses.lock().await;
                             analyses.push(analysis);
 
-                            // Batch save logic
                             if analyses.len() >= BATCH_SIZE {
                                 let analyses_to_save: Vec<SeoAnalysis> =
                                     analyses.drain(..BATCH_SIZE).collect();
@@ -167,7 +223,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                             }
 
-                            // Add new links to discovery queue
                             if !pause_flag.load(Ordering::SeqCst) {
                                 for link in child_links {
                                     let mut visited_lock = visited.lock().await;
@@ -182,7 +237,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
 
-                    // Periodic pause and save
                     if current_count % 3000 == 0 {
                         println!("======== Pausing for batch save ========");
                         pause_flag.store(true, Ordering::SeqCst);
@@ -196,7 +250,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         }
 
-                        // Handle logging errors
                         if let Err(e) = {
                             let mut logger = logger.lock().await;
                             let _ = logger.add_entry(format!(
@@ -218,16 +271,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     batch_task.await?;
 
-    // Final save
     let final_analyses = pending_analyses.lock().await.drain(..).collect::<Vec<_>>();
     if !final_analyses.is_empty() {
         save_analyses_batch(&pool, &final_analyses).await?;
     }
 
-    // Final flush of logs
     logger.lock().await.flush()?;
 
-    // Statistics
     let total_processed = pages_count.load(Ordering::Relaxed);
     let elapsed = start_time.elapsed();
     println!(
@@ -268,7 +318,13 @@ fn print_request_status(url: &str, method: &str, status: &str, details: Option<&
     );
 }
 
-async fn try_tunnel_request(url: &str, logger: &Arc<Mutex<AsyncLogger>>) -> Result<String, Box<dyn std::error::Error>> {
+async fn try_tunnel_request(
+    url: &str,
+    metrics: &Arc<Metrics>,
+) -> Result<String, Box<dyn std::error::Error>> {
+    metrics.total.fetch_add(1, Ordering::Relaxed);
+    metrics.tunnel.fetch_add(1, Ordering::Relaxed);
+
     let original_url = url.to_string();
     let tunnel_url = format!(
         "{}{}:/{}",
@@ -289,12 +345,11 @@ async fn try_tunnel_request(url: &str, logger: &Arc<Mutex<AsyncLogger>>) -> Resu
         Ok(response) => {
             let text = response.text().await?;
             print_request_status(&original_url, "TUNNEL", "SUCCESS", None);
-            logger.lock().await.add_entry(format!("TUNNEL | SUCCESS | {}", original_url))?;
             Ok(text)
         }
         Err(e) => {
+            metrics.failed.fetch_add(1, Ordering::Relaxed);
             print_request_status(&original_url, "TUNNEL", "FAILED", Some(&e.to_string()));
-            logger.lock().await.add_entry(format!("TUNNEL | FAILED | {} | {}", original_url, e))?;
             Err(e.into())
         }
     }
@@ -304,20 +359,19 @@ async fn process_page(
     url: &str,
     proxy_manager: &ProxyManager,
     rate_limiter: &RateLimiter,
-    logger: &Arc<Mutex<AsyncLogger>>,
+    metrics: &Arc<Metrics>,
 ) -> Result<(Vec<String>, SeoAnalysis), Box<dyn std::error::Error>> {
     rate_limiter.acquire_one().await;
-    
+
     let mut tunnel_retries = 0;
     let text = loop {
-        match try_tunnel_request(url, logger).await {
+        match try_tunnel_request(url, metrics).await {
             Ok(text) => break text,
             Err(_) => {
                 tunnel_retries += 1;
                 if tunnel_retries >= MAX_TUNNEL_RETRIES {
-                    // Fall back to proxy method
-                    logger.lock().await.add_entry(format!("PROXY | ATTEMPT | {} | Falling back to proxy after {} tunnel failures", url, tunnel_retries))?;
-                    
+                    metrics.proxy.fetch_add(1, Ordering::Relaxed);
+
                     let proxy = proxy_manager.get_next_proxy().ok_or("No proxy available")?;
                     let fp = RequestFingerprint::new(&proxy.ip, url);
 
@@ -335,17 +389,17 @@ async fn process_page(
                         Ok(response) => {
                             let text = response.text().await?;
                             print_request_status(url, "PROXY", "SUCCESS", None);
-                            logger.lock().await.add_entry(format!("PROXY | SUCCESS | {}", url))?;
                             break text;
                         }
                         Err(e) => {
+                            metrics.failed.fetch_add(1, Ordering::Relaxed);
                             print_request_status(url, "PROXY", "FAILED", Some(&e.to_string()));
-                            logger.lock().await.add_entry(format!("PROXY | FAILED | {} | {}", url, e))?;
                             return Err(e.into());
                         }
                     }
                 }
-                logger.lock().await.add_entry(format!("TUNNEL | RETRY | {} | attempt {}/{}", url, tunnel_retries, MAX_TUNNEL_RETRIES))?;
+
+                metrics.failed.fetch_add(1, Ordering::Relaxed);
                 print_request_status(
                     url,
                     "TUNNEL",
@@ -359,11 +413,12 @@ async fn process_page(
         }
     };
 
-    // Log discovered links
     let document = Html::parse_document(&text);
-    let (links, analysis) = (extract_links(&document, url), analyze_document(&document, url));
-    logger.lock().await.add_entry(format!("LINKS | FOUND | {} | {} new links", url, links.len()))?;
-    
+    let (links, analysis) = (
+        extract_links(&document, url),
+        analyze_document(&document, url),
+    );
+
     Ok((links, analysis))
 }
 
