@@ -1,9 +1,11 @@
 mod db;
 mod fingerprint;
+mod logger;
 mod meta_tags;
 mod proxy;
 
 use std::collections::HashSet;
+use std::env;
 use std::fs;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -22,17 +24,27 @@ use url::Url;
 
 use crate::db::{create_db_pool, save_analyses_batch, MetaTag, SeoAnalysis};
 use crate::fingerprint::RequestFingerprint;
+use crate::logger::AsyncLogger;
 use crate::proxy::ProxyManager;
 use futures::stream::StreamExt;
+use tokio::time::Duration; // <-- added
 
 const MAX_PAGES: usize = 1_000_000;
 const CONCURRENCY: usize = 100_000;
-const DB_CONCURRENCY: usize = 20;
 const BATCH_SIZE: usize = 2_000;
 const MAX_REQUESTS_PER_SECOND: usize = 1000;
+const MAX_TUNNEL_RETRIES: usize = 3;
+const LOG_BUFFER_SIZE: usize = 100;
+
+lazy_static::lazy_static! {
+    static ref PROXY_TUNNEL_URL: String = env::var("PROXY_TUNNEL_URL")
+        .expect("PROXY_TUNNEL_URL must be set in environment");
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let logger = AsyncLogger::new(LOG_BUFFER_SIZE)?;
+
     let sites_file = fs::read_to_string("data/sites.txt")?;
     let seeds: Vec<String> = sites_file
         .lines()
@@ -126,6 +138,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let pending_analyses = pending_analyses.clone();
             let rate_limiter = rate_limiter.clone();
             let pause_flag = pause_flag.clone();
+            let logger = logger.clone();
 
             {
                 let db_semaphore = db_semaphore.clone();
@@ -135,9 +148,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         return;
                     }
 
-                    println!("[{}/{}] URL: {}", current_count, MAX_PAGES, url);
+                    //println!("[{}/{}] URL: {}", current_count, MAX_PAGES, url);
 
-                    match process_page(&url, &proxy_manager, &rate_limiter).await {
+                    match process_page(&url, &proxy_manager, &rate_limiter, &logger).await {
                         Ok((child_links, analysis)) => {
                             // Store analysis
                             let mut analyses = pending_analyses.lock().await;
@@ -183,8 +196,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         }
 
+                        // Handle logging errors
+                        if let Err(e) = {
+                            let mut logger = logger.lock().await;
+                            let _ = logger.add_entry(format!(
+                                "======== Batch {} complete ========",
+                                current_count
+                            ));
+                            logger.flush()
+                        } {
+                            eprintln!("Error writing to log: {:?}", e);
+                        }
+
                         pause_flag.store(false, Ordering::SeqCst);
                     }
+                    ()
                 }
             }
         })
@@ -197,6 +223,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if !final_analyses.is_empty() {
         save_analyses_batch(&pool, &final_analyses).await?;
     }
+
+    // Final flush of logs
+    logger.lock().await.flush()?;
 
     // Statistics
     let total_processed = pages_count.load(Ordering::Relaxed);
@@ -211,31 +240,131 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn print_request_status(url: &str, method: &str, status: &str, details: Option<&str>) {
+    use colored::Colorize;
+    let timestamp = chrono::Local::now().format("%H:%M:%S");
+    let details_str = details.unwrap_or("");
+
+    let colored_method = match method {
+        "TUNNEL" => method.bright_blue(),
+        "PROXY" => method.bright_yellow(),
+        _ => method.normal(),
+    };
+
+    let colored_status = match status {
+        "SUCCESS" => status.bright_green(),
+        "FAILED" => status.bright_red(),
+        "RETRY" => status.bright_yellow(),
+        _ => status.normal(),
+    };
+
+    println!(
+        "[{}] {} | {} | {} {}",
+        timestamp.to_string().bright_black(),
+        colored_method,
+        colored_status,
+        url,
+        details_str
+    );
+}
+
+async fn try_tunnel_request(url: &str, logger: &Arc<Mutex<AsyncLogger>>) -> Result<String, Box<dyn std::error::Error>> {
+    let original_url = url.to_string();
+    let tunnel_url = format!(
+        "{}{}:/{}",
+        *PROXY_TUNNEL_URL,
+        if original_url.starts_with("https") {
+            "https"
+        } else {
+            "http"
+        },
+        original_url.split("://").nth(1).unwrap_or("")
+    );
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()?;
+
+    match client.get(&tunnel_url).send().await {
+        Ok(response) => {
+            let text = response.text().await?;
+            print_request_status(&original_url, "TUNNEL", "SUCCESS", None);
+            logger.lock().await.add_entry(format!("TUNNEL | SUCCESS | {}", original_url))?;
+            Ok(text)
+        }
+        Err(e) => {
+            print_request_status(&original_url, "TUNNEL", "FAILED", Some(&e.to_string()));
+            logger.lock().await.add_entry(format!("TUNNEL | FAILED | {} | {}", original_url, e))?;
+            Err(e.into())
+        }
+    }
+}
+
 async fn process_page(
     url: &str,
     proxy_manager: &ProxyManager,
     rate_limiter: &RateLimiter,
+    logger: &Arc<Mutex<AsyncLogger>>,
 ) -> Result<(Vec<String>, SeoAnalysis), Box<dyn std::error::Error>> {
     rate_limiter.acquire_one().await;
+    
+    let mut tunnel_retries = 0;
+    let text = loop {
+        match try_tunnel_request(url, logger).await {
+            Ok(text) => break text,
+            Err(_) => {
+                tunnel_retries += 1;
+                if tunnel_retries >= MAX_TUNNEL_RETRIES {
+                    // Fall back to proxy method
+                    logger.lock().await.add_entry(format!("PROXY | ATTEMPT | {} | Falling back to proxy after {} tunnel failures", url, tunnel_retries))?;
+                    
+                    let proxy = proxy_manager.get_next_proxy().ok_or("No proxy available")?;
+                    let fp = RequestFingerprint::new(&proxy.ip, url);
 
-    let proxy = proxy_manager.get_next_proxy().ok_or("No proxy available")?;
-    let fp = RequestFingerprint::new(&proxy.ip, url);
+                    let client = reqwest::Client::builder()
+                        .user_agent(&fp.user_agent)
+                        .referer(fp.referrer.is_some())
+                        .proxy(
+                            reqwest::Proxy::all(&proxy.addr)?
+                                .basic_auth(&proxy.username, &proxy.password),
+                        )
+                        .timeout(std::time::Duration::from_secs(30))
+                        .build()?;
 
-    let client = reqwest::Client::builder()
-        .user_agent(&fp.user_agent)
-        .referer(fp.referrer.is_some())
-        .proxy(reqwest::Proxy::all(&proxy.addr)?.basic_auth(&proxy.username, &proxy.password))
-        .timeout(std::time::Duration::from_secs(30))
-        .build()?;
+                    match client.get(url).send().await {
+                        Ok(response) => {
+                            let text = response.text().await?;
+                            print_request_status(url, "PROXY", "SUCCESS", None);
+                            logger.lock().await.add_entry(format!("PROXY | SUCCESS | {}", url))?;
+                            break text;
+                        }
+                        Err(e) => {
+                            print_request_status(url, "PROXY", "FAILED", Some(&e.to_string()));
+                            logger.lock().await.add_entry(format!("PROXY | FAILED | {} | {}", url, e))?;
+                            return Err(e.into());
+                        }
+                    }
+                }
+                logger.lock().await.add_entry(format!("TUNNEL | RETRY | {} | attempt {}/{}", url, tunnel_retries, MAX_TUNNEL_RETRIES))?;
+                print_request_status(
+                    url,
+                    "TUNNEL",
+                    "RETRY",
+                    Some(&format!(
+                        "attempt {}/{}",
+                        tunnel_retries, MAX_TUNNEL_RETRIES
+                    )),
+                );
+            }
+        }
+    };
 
-    let response = client.get(url).send().await?;
-    let text = response.text().await?;
+    // Log discovered links
     let document = Html::parse_document(&text);
-
-    Ok((
-        extract_links(&document, url),
-        analyze_document(&document, url),
-    ))
+    let (links, analysis) = (extract_links(&document, url), analyze_document(&document, url));
+    logger.lock().await.add_entry(format!("LINKS | FOUND | {} | {} new links", url, links.len()))?;
+    
+    Ok((links, analysis))
 }
 
 fn analyze_document(document: &Html, url: &str) -> SeoAnalysis {
