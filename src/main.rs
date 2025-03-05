@@ -33,8 +33,8 @@ const MAX_PAGES: usize = 200_000_000;
 const CONCURRENCY: usize = 100_000;
 const DB_CONCURRENCY: usize = 20;
 const BATCH_SIZE: usize = 2_000;
-const MAX_REQUESTS_PER_SECOND: usize = 5000;
-const MAX_TUNNEL_RETRIES: usize = 3;
+const MAX_REQUESTS_PER_SECOND: usize = 2000;
+const MAX_TUNNEL_RETRIES: usize = 2;
 const LOG_BUFFER_SIZE: usize = 10000;
 
 lazy_static::lazy_static! {
