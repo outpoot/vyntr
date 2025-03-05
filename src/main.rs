@@ -33,9 +33,9 @@ const MAX_PAGES: usize = 1_000_000;
 const CONCURRENCY: usize = 100_000;
 const DB_CONCURRENCY: usize = 20;
 const BATCH_SIZE: usize = 2_000;
-const MAX_REQUESTS_PER_SECOND: usize = 1000;
+const MAX_REQUESTS_PER_SECOND: usize = 300;
 const MAX_TUNNEL_RETRIES: usize = 3;
-const LOG_BUFFER_SIZE: usize = 100;
+const LOG_BUFFER_SIZE: usize = 10000;
 
 lazy_static::lazy_static! {
     static ref PROXY_TUNNEL_URL: String = env::var("PROXY_TUNNEL_URL")
@@ -47,6 +47,7 @@ struct Metrics {
     tunnel: AtomicUsize,
     proxy: AtomicUsize,
     failed: AtomicUsize,
+    success: AtomicUsize,
 }
 
 impl Default for Metrics {
@@ -56,6 +57,7 @@ impl Default for Metrics {
             tunnel: AtomicUsize::new(0),
             proxy: AtomicUsize::new(0),
             failed: AtomicUsize::new(0),
+            success: AtomicUsize::new(0),
         }
     }
 }
@@ -93,8 +95,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 };
 
                 let metrics_str = format!(
-                    "[Metrics] Total: {}, Tunnel: {}, Proxy: {}, T-P Rate: {:.2}, Failed: {}, Rate: {:.2} req/sec",
+                    "[Metrics] Total: {}, Success: {}, Tunnel: {}, Proxy: {}, T-P Rate: {:.2}, Failed: {}, Rate: {:.2} req/sec",
                     metrics.total.load(Ordering::Relaxed),
+                    metrics.success.load(Ordering::Relaxed),
                     metrics.tunnel.load(Ordering::Relaxed),
                     metrics.proxy.load(Ordering::Relaxed),
                     t_p_rate,
@@ -237,7 +240,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
 
-                    if current_count % 3000 == 0 {
+                    if current_count % BATCH_SIZE == 0 {
                         println!("======== Pausing for batch save ========");
                         pause_flag.store(true, Ordering::SeqCst);
 
@@ -418,6 +421,8 @@ async fn process_page(
         extract_links(&document, url),
         analyze_document(&document, url),
     );
+
+    metrics.success.fetch_add(1, Ordering::Relaxed);
 
     Ok((links, analysis))
 }
