@@ -1,31 +1,38 @@
 <script lang="ts">
 	import { Input } from '$lib/components/ui/input';
-	import Theme from '$lib/components/self/Theme.svelte';
 	import SearchIcon from '$lib/components/self/SearchIcon.svelte';
 	let searchIcon: any;
 	let isFocused = $state(false);
 </script>
 
-<div class="flex h-screen items-center justify-center flex-col gap-8">
-	<h1 class="text-8xl font-bold" style="font-family: 'LinLibertine'">Vyntr</h1>
-	<div class="relative w-full max-w-2xl mx-4">
+<div class="relative flex h-screen flex-col items-center justify-center gap-12">
+	<!-- Blurred background -->
+	<div
+		class="absolute inset-0 bg-cover bg-center bg-no-repeat blur-sm"
+		style="background-image: url('/background.webp')"
+	></div>
+	<!-- Sharp grain overlay -->
+	<div
+		class="pointer-events-none absolute inset-0 z-10 bg-[url('/grain.png')] bg-repeat opacity-95"
+	></div>
+
+	<h1 class="relative z-20 text-[8rem] font-bold" style="font-family: 'LinLibertine'">Vyntr</h1>
+	<div class="relative z-20 mx-6 w-full max-w-4xl">
 		<SearchIcon
 			bind:this={searchIcon}
-			size={20}
-			class="absolute left-4 top-1/2 z-20 h-5 w-5 -translate-y-1/2 text-primary"
+			size={30}
+			class="absolute left-6 top-1/2 z-20 h-8 w-8 -translate-y-1/2 text-primary"
 		/>
 		<div class="group/panel relative">
 			<div
-				class="relative flex h-full items-center justify-center rounded-3xl bg-background
-				bg-gradient-to-b from-border to-border/50 p-px transition-all duration-200
-				{isFocused ? 'shadow-md' : 'hover:shadow-md'}"
+				class="relative flex h-full items-center justify-center rounded-[2rem] bg-transparent backdrop-blur-lg transition-all duration-200 {isFocused ? 'shadow-md' : 'hover:shadow-md'}"
 			>
 				<div
-					class="relative z-10 h-full w-full overflow-hidden rounded-3xl bg-background/80 text-foreground"
+					class="relative z-10 h-full w-full overflow-hidden rounded-[2rem] bg-background/50 text-foreground"
 				>
 					<Input
 						placeholder="How do I cook..."
-						class="border-0 pl-12 focus:ring-0 focus:ring-offset-0 h-14 text-lg"
+						class="h-20 border-0 bg-transparent pl-20 text-2xl focus:ring-0 focus:ring-offset-0"
 						onfocus={() => {
 							searchIcon?.animate();
 							isFocused = true;
@@ -37,5 +44,3 @@
 		</div>
 	</div>
 </div>
-
-<Theme />
