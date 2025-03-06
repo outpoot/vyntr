@@ -293,6 +293,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn normalize_url(url: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let parsed = Url::parse(url).or_else(|_| Url::parse(&format!("http://{}", url)))?;
+    Ok(parsed.to_string())
+}
+
 fn is_cloudflare_error(text: &str) -> bool {
     text.contains("Cloudflare") && text.contains("Worker threw exception")
 }
