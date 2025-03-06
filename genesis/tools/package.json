@@ -1,0 +1,1 @@
+{ "dependencies": { "axios": "^1.8.1", "https-proxy-agent": "^7.0.6" } }
