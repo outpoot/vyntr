@@ -404,6 +404,15 @@ async fn process_page(
                     let proxy = proxy_manager.get_next_proxy().ok_or("No proxy available")?;
                     let fp = RequestFingerprint::new(&proxy.ip, url);
 
+let normalized_url = match normalize_url(url) {
+    Ok(u) => u,
+    Err(e) => {
+        metrics.failed.fetch_add(1, Ordering::Relaxed);
+        print_request_status(url, "PROXY", "FAILED", Some(&format!("Invalid URL: {}", e)));
+        return Err(e);
+    }
+};
+
                     let client = reqwest::Client::builder()
                         .user_agent(&fp.user_agent)
                         .referer(fp.referrer.is_some())
@@ -414,7 +423,7 @@ async fn process_page(
                         .timeout(std::time::Duration::from_secs(30))
                         .build()?;
 
-                    match client.get(url).send().await {
+                    match client.get(&normalized_url).send().await {
                         Ok(response) => {
                             let text = response.text().await?;
                             print_request_status(url, "PROXY", "SUCCESS", None);
