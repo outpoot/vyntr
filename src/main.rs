@@ -293,6 +293,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn is_cloudflare_error(text: &str) -> bool {
+    text.contains("Cloudflare") && text.contains("Worker threw exception")
+}
+
 fn print_request_status(url: &str, method: &str, status: &str, details: Option<&str>) {
     use colored::Colorize;
     let timestamp = chrono::Local::now().format("%H:%M:%S");
@@ -353,8 +357,19 @@ async fn try_tunnel_request(
     match client.get(&tunnel_url).send().await {
         Ok(response) => {
             let text = response.text().await?;
-            print_request_status(&original_url, "TUNNEL", "SUCCESS", None);
-            Ok(text)
+            if is_cloudflare_error(&text) {
+                metrics.failed.fetch_add(1, Ordering::Relaxed);
+                print_request_status(
+                    &original_url,
+                    "TUNNEL",
+                    "FAILED",
+                    Some("Cloudflare error detected"),
+                );
+                Err("Cloudflare error in response content".into())
+            } else {
+                print_request_status(&original_url, "TUNNEL", "SUCCESS", None);
+                Ok(text)
+            }
         }
         Err(e) => {
             metrics.failed.fetch_add(1, Ordering::Relaxed);
