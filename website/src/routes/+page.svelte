@@ -7,7 +7,7 @@
 </script>
 
 <div class="flex h-screen items-center justify-center flex-col gap-8">
-	<h1 class="text-8xl">Vyntr</h1>
+	<h1 class="text-8xl font-bold" style="font-family: 'LinLibertine'">Vyntr</h1>
 	<div class="relative w-full max-w-2xl mx-4">
 		<SearchIcon
 			bind:this={searchIcon}
@@ -16,13 +16,12 @@
 		/>
 		<div class="group/panel relative">
 			<div
-				class="relative flex h-full items-center justify-center rounded-lg bg-background
+				class="relative flex h-full items-center justify-center rounded-3xl bg-background
 				bg-gradient-to-b from-border to-border/50 p-px transition-all duration-200
-				{isFocused ? 'shadow-md' : 'hover:shadow-md'}
-				md:rounded-xl"
+				{isFocused ? 'shadow-md' : 'hover:shadow-md'}"
 			>
 				<div
-					class="relative z-10 h-full w-full overflow-hidden rounded-lg bg-background/80 text-foreground md:rounded-[11px]"
+					class="relative z-10 h-full w-full overflow-hidden rounded-3xl bg-background/80 text-foreground"
 				>
 					<Input
 						placeholder="How do I cook..."
