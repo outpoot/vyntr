@@ -16,7 +16,6 @@ use meta_tags::META_SELECTORS;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
-use reqwest;
 use scraper::{Html, Selector};
 use tokio::sync::{Mutex, Semaphore};
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -30,7 +29,7 @@ use futures::stream::StreamExt;
 use tokio::time::Duration;
 
 const MAX_PAGES: usize = 50_000;
-const CONCURRENCY: usize = 1_000;
+const CONCURRENCY: usize = 5_000;
 const DB_CONCURRENCY: usize = 20;
 const BATCH_SIZE: usize = 2_000;
 const MAX_REQUESTS_PER_SECOND: usize = 2000;
@@ -40,6 +39,20 @@ const LOG_BUFFER_SIZE: usize = 10000;
 lazy_static::lazy_static! {
     static ref PROXY_TUNNEL_URL: String = env::var("PROXY_TUNNEL_URL")
         .expect("PROXY_TUNNEL_URL must be set in environment");
+}
+
+#[cfg(debug_assertions)]
+macro_rules! debug_only {
+    ($($stmt:stmt)*) => {
+        $($stmt)*
+    };
+}
+
+#[cfg(not(debug_assertions))]
+macro_rules! debug_only {
+    ($($stmt:stmt)*) => {
+        // ... skidibvi
+    };
 }
 
 struct Metrics {
@@ -208,7 +221,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     match process_page(&url, &proxy_manager, &rate_limiter, &metrics).await {
                         Ok((child_links, analysis)) => {
-                            println!("[DEBUG] Extracted {} links from {}", child_links.len(), url);
+                            debug_only! { println!("[DEBUG] Extracted {} links from {}", child_links.len(), url) }
 
                             let mut analyses = pending_analyses.lock().await;
                             analyses.push(analysis);
@@ -341,9 +354,13 @@ async fn try_tunnel_request(
 
     match client.get(&tunnel_url).send().await {
         Ok(response) => {
+            let status = response.status();
             let text = response.text().await?;
+            if status == 403 || text.contains("403 Forbidden") {
+                print_request_status(&original_url, "TUNNEL", "FAILED", Some("403 Forbidden"));
+                return Err("403 Forbidden".into());
+            }
             if is_cloudflare_error(&text) {
-                metrics.failed.fetch_add(1, Ordering::Relaxed);
                 print_request_status(
                     &original_url,
                     "TUNNEL",
@@ -357,7 +374,6 @@ async fn try_tunnel_request(
             }
         }
         Err(e) => {
-            metrics.failed.fetch_add(1, Ordering::Relaxed);
             print_request_status(&original_url, "TUNNEL", "FAILED", Some(&e.to_string()));
             Err(e.into())
         }
@@ -378,60 +394,66 @@ async fn process_page(
             Ok(text) => break text,
             Err(_) => {
                 tunnel_retries += 1;
-                if tunnel_retries >= MAX_TUNNEL_RETRIES {
-                    metrics.proxy.fetch_add(1, Ordering::Relaxed);
-
-                    let proxy = proxy_manager.get_next_proxy().ok_or("No proxy available")?;
-                    let fp = RequestFingerprint::new(&proxy.ip, url);
-
-                    let normalized_url = match normalize_url(url) {
-                        Ok(u) => u,
-                        Err(e) => {
-                            metrics.failed.fetch_add(1, Ordering::Relaxed);
-                            print_request_status(
-                                url,
-                                "PROXY",
-                                "FAILED",
-                                Some(&format!("Invalid URL: {}", e)),
-                            );
-                            return Err(e);
-                        }
-                    };
-
-                    let client = reqwest::Client::builder()
-                        .user_agent(&fp.user_agent)
-                        .referer(fp.referrer.is_some())
-                        .proxy(
-                            reqwest::Proxy::all(&proxy.addr)?
-                                .basic_auth(&proxy.username, &proxy.password),
-                        )
-                        .timeout(std::time::Duration::from_secs(30))
-                        .build()?;
-
-                    match client.get(&normalized_url).send().await {
-                        Ok(response) => {
-                            let text = response.text().await?;
-                            print_request_status(url, "PROXY", "SUCCESS", None);
-                            break text;
-                        }
-                        Err(e) => {
-                            metrics.failed.fetch_add(1, Ordering::Relaxed);
-                            print_request_status(url, "PROXY", "FAILED", Some(&e.to_string()));
-                            return Err(e.into());
-                        }
-                    }
+                if tunnel_retries < MAX_TUNNEL_RETRIES {
+                    print_request_status(
+                        url,
+                        "TUNNEL",
+                        "RETRY",
+                        Some(&format!(
+                            "attempt {}/{}",
+                            tunnel_retries, MAX_TUNNEL_RETRIES
+                        )),
+                    );
+                    continue;
                 }
 
-                metrics.failed.fetch_add(1, Ordering::Relaxed);
-                print_request_status(
-                    url,
-                    "TUNNEL",
-                    "RETRY",
-                    Some(&format!(
-                        "attempt {}/{}",
-                        tunnel_retries, MAX_TUNNEL_RETRIES
-                    )),
-                );
+                metrics.proxy.fetch_add(1, Ordering::Relaxed);
+
+                let proxy = proxy_manager.get_next_proxy().ok_or("No proxy available")?;
+                let fp = RequestFingerprint::new(&proxy.ip, url);
+
+                let normalized_url = match normalize_url(url) {
+                    Ok(u) => u,
+                    Err(e) => {
+                        metrics.failed.fetch_add(1, Ordering::Relaxed);
+                        print_request_status(
+                            url,
+                            "PROXY",
+                            "FAILED",
+                            Some(&format!("Invalid URL: {}", e)),
+                        );
+                        return Err(e);
+                    }
+                };
+
+                let client = reqwest::Client::builder()
+                    .user_agent(&fp.user_agent)
+                    .referer(fp.referrer.is_some())
+                    .proxy(
+                        reqwest::Proxy::all(&proxy.addr)?
+                            .basic_auth(&proxy.username, &proxy.password),
+                    )
+                    .timeout(std::time::Duration::from_secs(30))
+                    .build()?;
+
+                match client.get(&normalized_url).send().await {
+                    Ok(response) => {
+                        let status = response.status();
+                        let text = response.text().await?;
+                        if status == 403 || text.contains("403 Forbidden") {
+                            metrics.failed.fetch_add(1, Ordering::Relaxed);
+                            print_request_status(url, "PROXY", "FAILED", Some("403 Forbidden"));
+                            return Err("403 Forbidden".into());
+                        }
+                        print_request_status(url, "PROXY", "SUCCESS", None);
+                        break text;
+                    }
+                    Err(e) => {
+                        metrics.failed.fetch_add(1, Ordering::Relaxed);
+                        print_request_status(url, "PROXY", "FAILED", Some(&e.to_string()));
+                        return Err(e.into());
+                    }
+                }
             }
         }
     };
@@ -509,7 +531,7 @@ fn analyze_document(document: &Html, url: &str) -> SeoAnalysis {
             }
             analysis.content_text.push_str(&text);
         }
-        // println!("Content: {}", analysis.content_text);
+        debug_only! { println!("Content: {}", analysis.content_text) }
     }
 
     analysis
@@ -527,20 +549,48 @@ fn is_ignored_file_type(url: &str) -> bool {
 
 fn extract_links(document: &Html, base_url: &str) -> Vec<String> {
     let mut links = Vec::new();
-    let base_url = match Url::parse(base_url) {
+
+    let normalized_base = match normalize_url(base_url) {
         Ok(u) => u,
-        Err(_) => return links,
+        Err(e) => {
+            debug_only! { println!("[ERROR] Failed to normalize base URL {}: {}", base_url, e) }
+            return links;
+        }
     };
+
+    let base_url = match Url::parse(&normalized_base) {
+        Ok(u) => u,
+        Err(e) => {
+            debug_only! { println!(
+                "[ERROR] Failed to parse normalized base URL {}: {}",
+                normalized_base, e
+            ) }
+            return links;
+        }
+    };
+
+    debug_only! { println!("[DEBUG] Link extraction base: {}", base_url) }
 
     if let Ok(selector) = Selector::parse("a[href]") {
         for element in document.select(&selector) {
             if let Some(href) = element.value().attr("href") {
-                if let Ok(mut parsed_url) = base_url.join(href) {
-                    parsed_url.set_fragment(None);
-                    if (parsed_url.scheme() == "http" || parsed_url.scheme() == "https")
-                        && !is_ignored_file_type(&parsed_url.path())
-                    {
-                        links.push(parsed_url.to_string());
+                debug_only! { println!("[DEBUG] Found href: {}", href) }
+
+                match base_url.join(href) {
+                    Ok(mut parsed_url) => {
+                        parsed_url.set_fragment(None);
+                        if (parsed_url.scheme() == "http" || parsed_url.scheme() == "https")
+                            && !is_ignored_file_type(parsed_url.path())
+                        {
+                            debug_only! { println!("[DEBUG] Added link: {}", parsed_url) }
+                            links.push(parsed_url.to_string());
+                        }
+                    }
+                    Err(e) => {
+                        println!(
+                            "[ERROR] Failed to join {} with base {}: {}",
+                            href, base_url, e
+                        );
                     }
                 }
             }

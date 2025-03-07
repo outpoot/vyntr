@@ -1,5 +1,4 @@
 use serde::Serialize;
-use serde_json;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use sqlx::Row;
 use std::env;
