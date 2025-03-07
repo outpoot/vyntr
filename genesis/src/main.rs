@@ -7,7 +7,7 @@ mod proxy;
 use std::collections::HashSet;
 use std::env;
 use std::fs;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -29,8 +29,8 @@ use crate::proxy::ProxyManager;
 use futures::stream::StreamExt;
 use tokio::time::Duration;
 
-const MAX_PAGES: usize = 200_000_000;
-const CONCURRENCY: usize = 100_000;
+const MAX_PAGES: usize = 50_000;
+const CONCURRENCY: usize = 1_000;
 const DB_CONCURRENCY: usize = 20;
 const BATCH_SIZE: usize = 2_000;
 const MAX_REQUESTS_PER_SECOND: usize = 2000;
@@ -186,8 +186,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .build(),
     );
 
-    let pause_flag = Arc::new(AtomicBool::new(false));
-
     UnboundedReceiverStream::new(processing_rx)
         .for_each_concurrent(CONCURRENCY, |url| {
             let pool = pool.clone();
@@ -197,7 +195,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let discovered_tx = discovered_tx.clone();
             let pending_analyses = pending_analyses.clone();
             let rate_limiter = rate_limiter.clone();
-            let pause_flag = pause_flag.clone();
             let logger = logger.clone();
             let metrics = metrics.clone();
 
@@ -209,29 +206,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         return;
                     }
 
-                    //println!("[{}/{}] URL: {}", current_count, MAX_PAGES, url);
-
                     match process_page(&url, &proxy_manager, &rate_limiter, &metrics).await {
                         Ok((child_links, analysis)) => {
+                            println!("[DEBUG] Extracted {} links from {}", child_links.len(), url);
+
                             let mut analyses = pending_analyses.lock().await;
                             analyses.push(analysis);
 
                             if analyses.len() >= BATCH_SIZE {
                                 let analyses_to_save: Vec<SeoAnalysis> =
                                     analyses.drain(..BATCH_SIZE).collect();
+                                let pool_clone = pool.clone();
                                 let _permit = db_semaphore.acquire().await;
-                                if let Err(e) = save_analyses_batch(&pool, &analyses_to_save).await
-                                {
-                                    eprintln!("Batch save error: {:?}", e);
-                                }
+                                tokio::spawn(async move {
+                                    if let Err(e) =
+                                        save_analyses_batch(&pool_clone, &analyses_to_save).await
+                                    {
+                                        eprintln!("Batch save error: {:?}", e);
+                                    }
+                                });
                             }
 
-                            if !pause_flag.load(Ordering::SeqCst) {
-                                for link in child_links {
-                                    let mut visited_lock = visited.lock().await;
-                                    if visited_lock.insert(link.clone()) {
-                                        let _ = discovered_tx.send(link);
-                                    }
+                            for link in child_links {
+                                let mut visited_lock = visited.lock().await;
+                                if visited_lock.insert(link.clone()) {
+                                    let _ = discovered_tx.send(link);
                                 }
                             }
                         }
@@ -241,32 +240,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
 
                     if current_count % BATCH_SIZE == 0 {
-                        println!("======== Pausing for batch save ========");
-                        pause_flag.store(true, Ordering::SeqCst);
-
-                        let mut analyses = pending_analyses.lock().await;
-                        if !analyses.is_empty() {
-                            let analyses_to_save: Vec<SeoAnalysis> = analyses.drain(..).collect();
-                            let _permit = db_semaphore.acquire().await;
-                            if let Err(e) = save_analyses_batch(&pool, &analyses_to_save).await {
-                                eprintln!("Final batch save error: {:?}", e);
-                            }
-                        }
-
-                        if let Err(e) = {
-                            let mut logger = logger.lock().await;
-                            let _ = logger.add_entry(format!(
-                                "======== Batch {} complete ========",
-                                current_count
-                            ));
-                            logger.flush()
-                        } {
-                            eprintln!("Error writing to log: {:?}", e);
-                        }
-
-                        pause_flag.store(false, Ordering::SeqCst);
+                        let mut logger = logger.lock().await;
+                        let _ = logger.add_entry(format!(
+                            "======== Batch {} complete ========",
+                            current_count
+                        ));
+                        let _ = logger.flush();
                     }
-                    ()
                 }
             }
         })
@@ -404,14 +384,19 @@ async fn process_page(
                     let proxy = proxy_manager.get_next_proxy().ok_or("No proxy available")?;
                     let fp = RequestFingerprint::new(&proxy.ip, url);
 
-let normalized_url = match normalize_url(url) {
-    Ok(u) => u,
-    Err(e) => {
-        metrics.failed.fetch_add(1, Ordering::Relaxed);
-        print_request_status(url, "PROXY", "FAILED", Some(&format!("Invalid URL: {}", e)));
-        return Err(e);
-    }
-};
+                    let normalized_url = match normalize_url(url) {
+                        Ok(u) => u,
+                        Err(e) => {
+                            metrics.failed.fetch_add(1, Ordering::Relaxed);
+                            print_request_status(
+                                url,
+                                "PROXY",
+                                "FAILED",
+                                Some(&format!("Invalid URL: {}", e)),
+                            );
+                            return Err(e);
+                        }
+                    };
 
                     let client = reqwest::Client::builder()
                         .user_agent(&fp.user_agent)
@@ -562,5 +547,6 @@ fn extract_links(document: &Html, base_url: &str) -> Vec<String> {
         }
     }
 
+    println!("[DEBUG] Extracted {} links from {}", links.len(), base_url);
     links
 }
