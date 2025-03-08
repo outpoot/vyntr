@@ -33,10 +33,41 @@ pub async fn create_db_pool() -> Result<PgPool, Box<dyn std::error::Error>> {
     Ok(pool)
 }
 
+fn sanitize_text(text: &str) -> String {
+    text.chars()
+        .filter(|c| !c.is_control() && *c != '\0')
+        .collect()
+}
+
+fn sanitize_analysis(analysis: &SeoAnalysis) -> SeoAnalysis {
+    SeoAnalysis {
+        url: sanitize_text(&analysis.url),
+        language: sanitize_text(&analysis.language),
+        title: sanitize_text(&analysis.title),
+        meta_tags: analysis
+            .meta_tags
+            .iter()
+            .map(|tag| MetaTag {
+                name: sanitize_text(&tag.name),
+                content: sanitize_text(&tag.content),
+            })
+            .collect(),
+        canonical_url: analysis
+            .canonical_url
+            .as_ref()
+            .map(|url| sanitize_text(url)),
+        content_text: sanitize_text(&analysis.content_text),
+    }
+}
+
 pub async fn save_analyses_batch(
     pool: &PgPool,
     analyses: &[SeoAnalysis],
 ) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Attempting to save batch of {} analyses", analyses.len());
+
+    let sanitized: Vec<SeoAnalysis> = analyses.iter().map(sanitize_analysis).collect();
+
     let mut tx = pool.begin().await?;
 
     let rows = sqlx::query(
@@ -54,14 +85,14 @@ pub async fn save_analyses_batch(
         RETURNING id
         "#,
     )
-    .bind(serde_json::to_value(analyses)?)
+    .bind(serde_json::to_value(&sanitized)?)
     .fetch_all(&mut *tx)
     .await?;
 
     let site_ids: Vec<i32> = rows.iter().map(|row| row.get("id")).collect();
 
     let mut all_meta_tags = Vec::new();
-    for (idx, analysis) in analyses.iter().enumerate() {
+    for (idx, analysis) in sanitized.iter().enumerate() {
         for meta_tag in &analysis.meta_tags {
             all_meta_tags.push(serde_json::json!({
                 "analysis_id": site_ids[idx],
@@ -86,6 +117,7 @@ pub async fn save_analyses_batch(
         .execute(&mut *tx)
         .await?;
     }
+
     tx.commit().await?;
 
     Ok(())

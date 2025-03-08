@@ -260,7 +260,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         }
                         Err(e) => {
-                            eprintln!("Error processing {}: {:?}", url, e);
+                            debug_only! { eprintln!("Error processing {}: {:?}", url, e) }
                         }
                     }
 
@@ -325,14 +325,14 @@ fn print_request_status(url: &str, method: &str, status: &str, details: Option<&
         _ => status.normal(),
     };
 
-    println!(
+    debug_only! { println!(
         "[{}] {} | {} | {} {}",
         timestamp.to_string().bright_black(),
         colored_method,
         colored_status,
         url,
         details_str
-    );
+    ) }
 }
 
 async fn try_tunnel_request(
