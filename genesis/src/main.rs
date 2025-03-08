@@ -345,14 +345,9 @@ async fn try_tunnel_request(
 
     let scheme = url_parts[0];
     let rest = url_parts[1];
-
     let tunnel_url = format!("{}{}:/{}", *PROXY_TUNNEL_URL, scheme, rest);
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()?;
-
-    match client.get(&tunnel_url).send().await {
+    match proxy::TUNNEL_CLIENT.get(&tunnel_url).send().await {
         Ok(response) => {
             let status = response.status();
             let text = response.text().await?;
@@ -412,31 +407,16 @@ async fn process_page(
                 let proxy = proxy_manager.get_next_proxy().ok_or("No proxy available")?;
                 let fp = RequestFingerprint::new(&proxy.ip, url);
 
-                let normalized_url = match normalize_url(url) {
-                    Ok(u) => u,
-                    Err(e) => {
-                        metrics.failed.fetch_add(1, Ordering::Relaxed);
-                        print_request_status(
-                            url,
-                            "PROXY",
-                            "FAILED",
-                            Some(&format!("Invalid URL: {}", e)),
-                        );
-                        return Err(e);
-                    }
-                };
+                let normalized_url = normalize_url(url)?;
 
-                let client = reqwest::Client::builder()
-                    .user_agent(&fp.user_agent)
-                    .referer(fp.referrer.is_some())
-                    .proxy(
-                        reqwest::Proxy::all(&proxy.addr)?
-                            .basic_auth(&proxy.username, &proxy.password),
-                    )
-                    .timeout(std::time::Duration::from_secs(30))
-                    .build()?;
-
-                match client.get(&normalized_url).send().await {
+                match proxy
+                    .client
+                    .get(&normalized_url)
+                    .header("User-Agent", &fp.user_agent)
+                    .header("Referer", fp.referrer.as_deref().unwrap_or(&normalized_url))
+                    .send()
+                    .await
+                {
                     Ok(response) => {
                         let status = response.status();
                         let text = response.text().await?;
