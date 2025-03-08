@@ -1,13 +1,12 @@
 <script lang="ts">
 	import { Input } from '$lib/components/ui/input';
 	import SearchIcon from '$lib/components/self/SearchIcon.svelte';
-	import Theme from '$lib/components/self/Theme.svelte';
 	import { Button } from '$lib/components/ui/button';
 	let searchIcon: any;
 	let isFocused = $state(false);
 </script>
 
-<div class="relative flex h-screen flex-col items-center justify-center gap-12 px-4 sm:px-6">
+<div class="relative flex h-screen flex-col items-center justify-center gap-4">
 	<div class="absolute inset-0 bg-black"></div>
 
 	<div
@@ -19,15 +18,15 @@
 	>
 		Vyntr
 	</h1>
-	<div class="relative w-full max-w-4xl">
+	<div class="relative w-full max-w-3xl">
 		<SearchIcon
 			bind:this={searchIcon}
-			size={30}
-			class="absolute left-6 top-1/2 z-20 h-8 w-8 -translate-y-1/2 text-primary-foreground"
+			size={24}
+			class="absolute left-5 top-1/2 z-20 h-6 w-6 -translate-y-1/2 text-primary-foreground"
 		/>
 		<Input
 			placeholder="How do I cook..."
-			class="h-14 w-full rounded-[2rem] border-2 bg-primary pl-20 text-lg text-primary-foreground shadow-xl focus:border-2 focus:border-ring focus:outline-none sm:h-16 sm:text-xl md:h-20 md:text-2xl"
+			class="h-12 w-full rounded-[1.5rem] border-2 bg-primary pl-14 text-base text-primary-foreground shadow-xl focus:border-2 focus:border-ring focus:outline-none sm:h-14 sm:pl-16 sm:text-lg md:h-16"
 			onfocus={() => {
 				searchIcon?.animate();
 				isFocused = true;
@@ -37,7 +36,8 @@
 		/>
 	</div>
 
-	<div class="z-20">
-		<Button>I'm Feeling Lucky</Button>
+	<div class="z-20 mt-2 inline-flex gap-2">
+		<Button class="border">Search</Button>
+		<Button class="border">I'm Feeling Lucky</Button>
 	</div>
 </div>
