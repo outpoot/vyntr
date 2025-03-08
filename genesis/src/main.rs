@@ -134,13 +134,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let idle_time = last_activity.elapsed();
 
                 if idle_time >= INACTIVITY_TIMEOUT {
-                    let mut log = logger.lock().await;
-                    let _ = log.add_entry(format!(
-                        "No activity for {}s, shutting down...",
-                        idle_time.as_secs()
-                    ));
-                    let _ = log.flush();
-                    std::process::exit(0);
+                    //let mut log = logger.lock().await;
+                    //let _ = log.add_entry(format!(
+                      //  "No activity for {}s, shutting down...",
+                      //  idle_time.as_secs()
+                   // ));
+                    //let _ = log.flush();
+                    //std::process::exit(0);
                 }
             }
         }
