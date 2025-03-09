@@ -8,8 +8,8 @@
 		ref?: any;
 		type?: HTMLInputAttributes['type'];
 		class?: string;
-		hasSuggestions?: boolean;
 		focused?: boolean;
+		showSuggestions?: boolean;
 	};
 
 	let {
@@ -18,12 +18,9 @@
 		value = $bindable(),
 		type,
 		class: className,
-		hasSuggestions = false,
-		focused = false,
+		showSuggestions = false,
 		...restProps
 	}: Props = $props();
-
-	let showSuggestions = $derived(value && hasSuggestions && focused);
 </script>
 
 <div class="relative w-full">

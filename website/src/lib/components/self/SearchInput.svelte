@@ -22,34 +22,30 @@
 		'How do I cook bacon',
 		'How do I cook breakfast'
 	];
-
 	let filteredSuggestions = $derived(
 		suggestions.filter((s) => s.toLowerCase().includes(searchValue.toLowerCase()))
 	);
 	let hasSuggestions = $derived(filteredSuggestions.length > 0);
+	let showSuggestions = $derived(Boolean(searchValue && hasSuggestions && isFocused));
 
-	function selectSuggestion(suggestion: string) {
-		searchValue = suggestion;
+	function selectSuggestion(s: string) {
+		searchValue = s;
 		selectedIndex = -1;
 		inputRef?.blur();
 	}
-
-	function handleKeydown(event: KeyboardEvent) {
+	function handleKeydown(e: KeyboardEvent) {
 		if (!hasSuggestions) return;
-
-		switch (event.key) {
+		switch (e.key) {
 			case 'ArrowDown':
-				event.preventDefault();
+				e.preventDefault();
 				selectedIndex = (selectedIndex + 1) % filteredSuggestions.length;
 				break;
 			case 'ArrowUp':
-				event.preventDefault();
+				e.preventDefault();
 				selectedIndex = selectedIndex <= 0 ? filteredSuggestions.length - 1 : selectedIndex - 1;
 				break;
 			case 'Enter':
-				if (selectedIndex >= 0) {
-					selectSuggestion(filteredSuggestions[selectedIndex]);
-				}
+				if (selectedIndex >= 0) selectSuggestion(filteredSuggestions[selectedIndex]);
 				break;
 			case 'Escape':
 				isFocused = false;
@@ -68,16 +64,14 @@
 	<Input
 		bind:value={searchValue}
 		placeholder="How do I cook..."
-		{hasSuggestions}
+		{showSuggestions}
 		focused={isFocused}
 		bind:ref={inputRef}
-		class="h-12 w-full
-        {hasSuggestions && searchValue && isFocused
-			? 'rounded-b-none border-b-0 border-l-2 border-r-2 border-t-2'
-			: 'rounded-b-[1.5rem] border-2'}
-        bg-primary pl-14 text-base text-primary-foreground shadow-xl
-        focus:border-ring focus:outline-none
-        sm:h-14 sm:pl-16 sm:text-lg md:h-16"
+		class={`h-12 w-full ${
+			showSuggestions
+				? 'rounded-b-none border-b-0 border-l-2 border-r-2 border-t-2'
+				: 'rounded-b-[1.5rem] border-2'
+		} bg-primary pl-14 text-base text-primary-foreground shadow-xl focus:border-ring focus:outline-none sm:h-14 sm:pl-16 sm:text-lg md:h-16`}
 		onfocus={() => {
 			searchIcon?.animate();
 			isFocused = true;
@@ -103,7 +97,6 @@
 				{suggestion}
 			</button>
 		{/each}
-
 		<div class="mb-2 flex justify-center">
 			<TrailingButtons />
 		</div>
