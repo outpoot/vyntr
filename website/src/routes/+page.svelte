@@ -2,6 +2,8 @@
 	import { Input } from '$lib/components/ui/input';
 	import SearchIcon from '$lib/components/self/SearchIcon.svelte';
 	import { Button } from '$lib/components/ui/button';
+	import { Search } from 'lucide-svelte';
+	import TrailingButtons from '$lib/components/self/TrailingButtons.svelte';
 	let searchIcon: any;
 	let isFocused = $state(false);
 	let searchValue = $state('');
@@ -19,13 +21,13 @@
 		'How do I cook breakfast'
 	];
 
-	let filteredSuggestions = $derived(suggestions.filter((s) => 
-		s.toLowerCase().includes(searchValue.toLowerCase())
-	));
+	let filteredSuggestions = $derived(
+		suggestions.filter((s) => s.toLowerCase().includes(searchValue.toLowerCase()))
+	);
 	let hasSuggestions = $derived(filteredSuggestions.length > 0);
 </script>
 
-<div class="relative flex h-screen flex-col items-center justify-center gap-4">
+<div class="relative flex h-screen flex-col items-center gap-4" style="padding-top: 25vh">
 	<div class="absolute inset-0 bg-black"></div>
 
 	<div
@@ -64,17 +66,19 @@
 		>
 			{#each filteredSuggestions as suggestion}
 				<button
-					class="w-full px-6 py-2 text-left text-sm text-primary-foreground hover:bg-muted"
+					class="flex w-full items-center gap-3 px-6 py-2 text-left text-base text-primary-foreground last:rounded-b-[1.5rem] hover:bg-muted"
 					onmousedown={() => (searchValue = suggestion)}
 				>
+					<Search size={12} />
 					{suggestion}
 				</button>
 			{/each}
+
+			<div class="mb-2 flex justify-center">
+				<TrailingButtons />
+			</div>
 		</Input>
 	</div>
 
-	<div class="z-20 mt-2 inline-flex gap-2">
-		<Button class="border">Search</Button>
-		<Button class="border">I'm Feeling Lucky</Button>
-	</div>
+	<TrailingButtons />
 </div>
