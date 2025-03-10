@@ -1,5 +1,5 @@
-DROP TABLE "meta_tags";
-DROP TABLE "sites";
+DROP TABLE "meta_tags" CASCADE;
+DROP TABLE "sites" CASCADE;
 
 CREATE TABLE sites (
     id SERIAL PRIMARY KEY,

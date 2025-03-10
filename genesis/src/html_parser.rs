@@ -40,8 +40,9 @@ pub fn parse_html(html: &[u8], base_url: &str) -> Result<ParsedHtml, Box<dyn std
                     if let Some(href) = el.get_attribute("href") {
                         if let Ok(mut url) = base_url.join(&href) {
                             url.set_fragment(None);
-                            if (url.scheme() == "http" || url.scheme() == "https") 
-                                && !is_ignored_file_type(url.path()) {
+                            if (url.scheme() == "http" || url.scheme() == "https")
+                                && !is_ignored_file_type(url.path())
+                            {
                                 links_clone.lock().unwrap().insert(url.to_string());
                             }
                         }
@@ -60,14 +61,12 @@ pub fn parse_html(html: &[u8], base_url: &str) -> Result<ParsedHtml, Box<dyn std
                     Ok(())
                 }),
                 element!("meta[name], meta[property]", |el| {
-                    let name = el.get_attribute("name")
+                    let name = el
+                        .get_attribute("name")
                         .or_else(|| el.get_attribute("property"))
                         .unwrap_or_default();
                     if let Some(content) = el.get_attribute("content") {
-                        result.meta_tags.push(MetaTag {
-                            name,
-                            content,
-                        });
+                        result.meta_tags.push(MetaTag { name, content });
                     }
                     Ok(())
                 }),
@@ -104,10 +103,54 @@ pub fn parse_html(html: &[u8], base_url: &str) -> Result<ParsedHtml, Box<dyn std
 
 fn is_ignored_file_type(path: &str) -> bool {
     let extensions = [
-        ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg", ".pdf", 
-        ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".zip", ".rar", 
-        ".tar", ".gz", ".mp3", ".mp4", ".avi", ".mov",
+        // Media files
+        ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg", ".ico", ".tiff", ".pdf", ".epub",
+        ".mobi", // Documents
+        ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".rtf", ".csv",
+        // Archives
+        ".zip", ".rar", ".tar", ".gz", ".7z", ".bz2", ".iso", // Audio/Video
+        ".mp3", ".mp4", ".wav", ".avi", ".mov", ".wmv", ".flv", ".ogg", ".ogv", ".webm", ".m4a",
+        ".m4v", ".3gp", // Other
+        ".exe", ".dmg", ".pkg", ".deb", ".rpm", ".apk", ".ipa",
     ];
+
+    let blocked_patterns = [
+        "/download/",
+        "/compress/",
+        "/stream/",
+        "/pdf/",
+        "/static/",
+        "/content/uploads/",
+        "arxiv.org/pdf/",
+        "arxiv.org/ps/",
+        ".pdf?",
+        "/lectures/",
+        "/video/",
+        "/audio/",
+    ];
+
     let path_lower = path.to_lowercase();
-    extensions.iter().any(|&ext| path_lower.ends_with(ext))
+
+    if extensions.iter().any(|&ext| path_lower.ends_with(ext)) {
+        return true;
+    }
+
+    if blocked_patterns
+        .iter()
+        .any(|&pattern| path_lower.contains(pattern))
+    {
+        return true;
+    }
+
+    if path_lower.contains("/pdf/")
+        && path_lower
+            .split('/')
+            .last()
+            .map(|s| s.chars().all(|c| c.is_numeric() || c == '.'))
+            .unwrap_or(false)
+    {
+        return true;
+    }
+
+    false
 }
