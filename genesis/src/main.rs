@@ -1,28 +1,35 @@
+mod crawler;
 mod db;
 mod fingerprint;
 mod html_parser;
 mod logger;
+mod metrics;
+mod network;
 mod proxy;
+mod utils;
 
 use std::collections::HashSet;
 use std::env;
 use std::fs;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
+use fingerprint::RequestFingerprint;
+use futures::StreamExt;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
 use tokio::sync::{Mutex, Semaphore};
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use url::Url;
 
-use crate::db::{create_db_pool, save_analyses_batch, SeoAnalysis};
-use crate::fingerprint::RequestFingerprint;
+use crate::crawler::{DomainQueues, extract_domain};
+use crate::metrics::Metrics;
+use crate::utils::{normalize_url, print_request_status};
 use crate::logger::AsyncLogger;
 use crate::proxy::ProxyManager;
-use futures::stream::StreamExt;
+use crate::db::{create_db_pool, save_analyses_batch, SeoAnalysis};
+use crate::network::try_tunnel_request;
 
 const MAX_PAGES: usize = 50_000;
 const CONCURRENCY: usize = 5_000;
@@ -37,6 +44,7 @@ lazy_static::lazy_static! {
         .expect("PROXY_TUNNEL_URL must be set in environment");
 }
 
+#[macro_export]
 #[cfg(debug_assertions)]
 macro_rules! debug_only {
     ($($stmt:stmt)*) => {
@@ -44,33 +52,12 @@ macro_rules! debug_only {
     };
 }
 
+#[macro_export]
 #[cfg(not(debug_assertions))]
 macro_rules! debug_only {
     ($($stmt:stmt)*) => {
         // ... skidibvi
     };
-}
-
-struct Metrics {
-    total: AtomicUsize,
-    tunnel: AtomicUsize,
-    proxy: AtomicUsize,
-    failed: AtomicUsize,
-    success: AtomicUsize,
-    last_activity: Arc<Mutex<Instant>>,
-}
-
-impl Default for Metrics {
-    fn default() -> Self {
-        Metrics {
-            total: AtomicUsize::new(0),
-            tunnel: AtomicUsize::new(0),
-            proxy: AtomicUsize::new(0),
-            failed: AtomicUsize::new(0),
-            success: AtomicUsize::new(0),
-            last_activity: Arc::new(Mutex::new(Instant::now())),
-        }
-    }
 }
 
 #[tokio::main]
@@ -163,37 +150,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db_semaphore = Arc::new(Semaphore::new(DB_CONCURRENCY));
     let pending_analyses = Arc::new(Mutex::new(Vec::new()));
 
-    let (discovered_tx, mut discovered_rx) = tokio::sync::mpsc::unbounded_channel();
-    let (processing_tx, processing_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (discovered_tx, mut discovered_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    let (processing_tx, processing_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     let discovered_tx = Arc::new(discovered_tx);
     let processing_tx = Arc::new(processing_tx);
 
     let batch_task = tokio::spawn({
         let processing_tx = processing_tx.clone();
         async move {
-            let mut buffer = Vec::with_capacity(BATCH_SIZE);
+            let mut domain_queues = DomainQueues::new();
             let mut rng = StdRng::from_os_rng();
-            let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
+            let mut interval = tokio::time::interval(Duration::from_secs(1));
+            const MAX_PER_DOMAIN: usize = 5;
 
             loop {
                 tokio::select! {
                     Some(link) = discovered_rx.recv() => {
-                        buffer.push(link);
+                        let normalized_url = match normalize_url(&link) {
+                            Ok(url) => url,
+                            Err(_) => continue,
+                        };
+                        let domain = match extract_domain(&normalized_url) {
+                            Ok(d) => d,
+                            Err(_) => continue,
+                        };
+                        domain_queues.add(domain, normalized_url);
 
-                        if buffer.len() >= BATCH_SIZE {
-                            buffer.shuffle(&mut rng);
-                            for link in buffer.drain(..) {
-                                if processing_tx.send(link).is_err() {
+                        if domain_queues.total >= BATCH_SIZE {
+                            let batch = domain_queues.collect_batch(MAX_PER_DOMAIN);
+                            let mut shuffled = batch;
+                            shuffled.shuffle(&mut rng);
+                            for url in shuffled {
+                                if processing_tx.send(url).is_err() {
                                     return;
                                 }
                             }
                         }
                     },
                     _ = interval.tick() => {
-                        if !buffer.is_empty() {
-                            buffer.shuffle(&mut rng);
-                            for link in buffer.drain(..) {
-                                let _ = processing_tx.send(link);
+                        if domain_queues.total > 0 {
+                            let batch = domain_queues.collect_batch(MAX_PER_DOMAIN);
+                            let mut shuffled = batch;
+                            shuffled.shuffle(&mut rng);
+                            for url in shuffled {
+                                let _ = processing_tx.send(url);
                             }
                         }
                     }
@@ -299,95 +299,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     Ok(())
-}
-
-fn normalize_url(url: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let parsed = Url::parse(url).or_else(|_| Url::parse(&format!("http://{}", url)))?;
-    Ok(parsed.to_string())
-}
-
-fn is_cloudflare_error(text: &str) -> bool {
-    text.contains("Cloudflare") && text.contains("Worker threw exception")
-}
-
-fn print_request_status(url: &str, method: &str, status: &str, details: Option<&str>) {
-    use colored::Colorize;
-    let timestamp = chrono::Local::now().format("%H:%M:%S");
-    let details_str = details.unwrap_or("");
-
-    let colored_method = match method {
-        "TUNNEL" => method.bright_blue(),
-        "PROXY" => method.bright_yellow(),
-        _ => method.normal(),
-    };
-
-    let colored_status = match status {
-        "SUCCESS" => status.bright_green(),
-        "FAILED" => status.bright_red(),
-        "RETRY" => status.bright_yellow(),
-        _ => status.normal(),
-    };
-
-    debug_only! { println!(
-        "[{}] {} | {} | {} {}",
-        timestamp.to_string().bright_black(),
-        colored_method,
-        colored_status,
-        url,
-        details_str
-    ) }
-}
-
-async fn try_tunnel_request(
-    url: &str,
-    metrics: &Arc<Metrics>,
-) -> Result<String, Box<dyn std::error::Error>> {
-    metrics.total.fetch_add(1, Ordering::Relaxed);
-    metrics.tunnel.fetch_add(1, Ordering::Relaxed);
-
-    let original_url = url.to_string();
-
-    let parsed_url = if !url.contains("://") {
-        format!("http://{}", url)
-    } else {
-        url.to_string()
-    };
-
-    let url_parts: Vec<&str> = parsed_url.splitn(2, "://").collect();
-    if url_parts.len() != 2 {
-        return Err("Invalid URL format".into());
-    }
-
-    let scheme = url_parts[0];
-    let rest = url_parts[1];
-    let tunnel_url = format!("{}{}:/{}", *PROXY_TUNNEL_URL, scheme, rest);
-
-    match proxy::TUNNEL_CLIENT.get(&tunnel_url).send().await {
-        Ok(response) => {
-            let status = response.status();
-            let text = response.text().await?;
-            if status == 403 || text.contains("403 Forbidden") {
-                print_request_status(&original_url, "TUNNEL", "FAILED", Some("403 Forbidden"));
-                return Err("403 Forbidden".into());
-            }
-            if is_cloudflare_error(&text) {
-                print_request_status(
-                    &original_url,
-                    "TUNNEL",
-                    "FAILED",
-                    Some("Cloudflare error detected"),
-                );
-                Err("Cloudflare error in response content".into())
-            } else {
-                print_request_status(&original_url, "TUNNEL", "SUCCESS", None);
-                Ok(text)
-            }
-        }
-        Err(e) => {
-            print_request_status(&original_url, "TUNNEL", "FAILED", Some(&e.to_string()));
-            Err(e.into())
-        }
-    }
 }
 
 async fn process_page(
