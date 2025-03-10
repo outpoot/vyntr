@@ -125,7 +125,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // inactivity checker task
     tokio::spawn({
         let metrics = metrics.clone();
-        let logger = logger.clone();
+
+        debug_only! { let logger = logger.clone() }
         async move {
             let mut interval = tokio::time::interval(Duration::from_secs(5));
             loop {
@@ -134,13 +135,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let idle_time = last_activity.elapsed();
 
                 if idle_time >= INACTIVITY_TIMEOUT {
-                    //let mut log = logger.lock().await;
-                    //let _ = log.add_entry(format!(
-                      //  "No activity for {}s, shutting down...",
-                      //  idle_time.as_secs()
-                   // ));
-                    //let _ = log.flush();
-                    //std::process::exit(0);
+                    debug_only! {
+                        let mut log = logger.lock().await
+                        let _ = log.add_entry(format!(
+                           "No activity for {}s, shutting down...",
+                           idle_time.as_secs()
+                       ))
+                        let _ = log.flush()
+                        std::process::exit(0)
+                    }
                 }
             }
         }
