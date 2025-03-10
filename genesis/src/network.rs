@@ -4,6 +4,13 @@ use crate::utils::is_cloudflare_error;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
+const ALLOWED_CONTENT_TYPES: [&str; 4] = [
+    "text/html",
+    "application/xhtml+xml",
+    "application/xhtml",
+    "text/plain",
+];
+
 pub async fn try_tunnel_request(
     url: &str,
     metrics: &Arc<Metrics>,
@@ -31,6 +38,16 @@ pub async fn try_tunnel_request(
     match crate::proxy::TUNNEL_CLIENT.get(&tunnel_url).send().await {
         Ok(response) => {
             let status = response.status();
+            
+            // check content type before downloading body
+            if let Some(content_type) = response.headers().get("content-type") {
+                let content_type = content_type.to_str().unwrap_or_default().to_lowercase();
+                if !ALLOWED_CONTENT_TYPES.iter().any(|&allowed| content_type.contains(allowed)) {
+                    print_request_status(&original_url, "TUNNEL", "SKIPPED", Some(&content_type));
+                    return Err(format!("Unsupported content type: {}", content_type).into());
+                }
+            }
+
             let text = response.text().await?;
             if status == 403 || text.contains("403 Forbidden") {
                 print_request_status(&original_url, "TUNNEL", "FAILED", Some("403 Forbidden"));

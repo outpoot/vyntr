@@ -123,10 +123,15 @@ fn is_ignored_file_type(path: &str) -> bool {
         "/content/uploads/",
         "arxiv.org/pdf/",
         "arxiv.org/ps/",
+        "arxiv.org/src/",
         ".pdf?",
         "/lectures/",
         "/video/",
         "/audio/",
+        "/rss",
+        ".rss",
+        "/feed",
+        "/atom",
     ];
 
     let path_lower = path.to_lowercase();
