@@ -10,6 +10,7 @@ pub struct Metrics {
     pub failed: AtomicUsize,
     pub success: AtomicUsize,
     pub last_activity: Arc<Mutex<Instant>>,
+    pub total_left: AtomicUsize,
 }
 
 impl Default for Metrics {
@@ -21,6 +22,7 @@ impl Default for Metrics {
             failed: AtomicUsize::new(0),
             success: AtomicUsize::new(0),
             last_activity: Arc::new(Mutex::new(Instant::now())),
+            total_left: AtomicUsize::new(0),
         }
     }
 }

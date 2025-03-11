@@ -93,13 +93,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 };
 
                 let metrics_str = format!(
-                    "[Metrics] Total: {}, Success: {}, Tunnel: {}, Proxy: {}, T-P Rate: {:.2}, Failed: {}, Rate: {:.2} req/sec",
+                    "[Metrics] Total: {}, Success: {}, Tunnel: {}, Proxy: {}, T-P Rate: {:.2}, Failed: {}, Left: {}, Rate: {:.2} req/sec",
                     metrics.total.load(Ordering::Relaxed),
                     metrics.success.load(Ordering::Relaxed),
                     metrics.tunnel.load(Ordering::Relaxed),
                     metrics.proxy.load(Ordering::Relaxed),
                     t_p_rate,
                     metrics.failed.load(Ordering::Relaxed),
+                    metrics.total_left.load(Ordering::Relaxed),
                     metrics.total.load(Ordering::Relaxed) as f64 / elapsed
                 );
                 let mut log = logger.lock().await;
@@ -236,6 +237,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     match process_page(&url, &proxy_manager, &metrics).await {
                         Ok((child_links, analysis)) => {
+                            // decrease total_left since we processed one
+                            metrics.total_left.fetch_sub(1, Ordering::Relaxed);
+                            
                             debug_only! { println!("[DEBUG] Extracted {} links from {}", child_links.len(), url) }
 
                             let mut analyses = pending_analyses.lock().await;
@@ -258,6 +262,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             for link in child_links {
                                 let mut visited_lock = visited.lock().await;
                                 if visited_lock.insert(link.clone()) {
+                                    // increase total_left for each new URL discovered
+                                    metrics.total_left.fetch_add(1, Ordering::Relaxed);
                                     let _ = discovered_tx.send(link);
                                 }
                             }
