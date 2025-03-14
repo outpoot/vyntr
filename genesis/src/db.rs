@@ -1,10 +1,13 @@
-use serde::Serialize;
-use sqlx::postgres::{PgPool, PgPoolOptions};
-use sqlx::Row;
+use aws_sdk_s3::{
+    config::{retry, timeout, Region},
+    primitives::ByteStream,
+    Client,
+};
+use serde::{Deserialize, Serialize};
 use std::env;
-use std::time::Duration;
+use uuid::Uuid;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SeoAnalysis {
     pub url: String,
     pub language: String,
@@ -14,23 +17,42 @@ pub struct SeoAnalysis {
     pub content_text: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct MetaTag {
     pub name: String,
     pub content: String,
 }
 
-pub async fn create_db_pool() -> Result<PgPool, Box<dyn std::error::Error>> {
+pub async fn create_db_pool() -> Result<Client, Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
-    let database_url = env::var("DATABASE_URL")?;
-    let pool = PgPoolOptions::new()
-        .max_connections(20)
-        .acquire_timeout(Duration::from_secs(30))
-        .idle_timeout(Duration::from_secs(600))
-        .connect(&database_url)
-        .await?;
 
-    Ok(pool)
+    let bucket = env::var("S3_BUCKET")?;
+    let region_env = env::var("S3_REGION").unwrap_or_else(|_| "us-east-1".to_string());
+
+    println!("[S3] Using region: {}", region_env);
+    println!("[S3] Using bucket: {}", bucket);
+
+    let shared_config = aws_config::from_env()
+        .region(Region::new(region_env))
+        .load()
+        .await;
+
+    let s3_config = aws_sdk_s3::config::Builder::from(&shared_config)
+        .force_path_style(true)
+        .retry_config(
+            retry::RetryConfig::standard()
+                .with_max_attempts(3)
+                .with_initial_backoff(std::time::Duration::from_secs(1)),
+        )
+        .timeout_config(
+            timeout::TimeoutConfig::builder()
+                .connect_timeout(std::time::Duration::from_secs(10))
+                .read_timeout(std::time::Duration::from_secs(30))
+                .build(),
+        )
+        .build();
+
+    Ok(Client::from_conf(s3_config))
 }
 
 fn sanitize_text(text: &str) -> String {
@@ -61,64 +83,56 @@ fn sanitize_analysis(analysis: &SeoAnalysis) -> SeoAnalysis {
 }
 
 pub async fn save_analyses_batch(
-    pool: &PgPool,
+    client: &Client,
     analyses: &[SeoAnalysis],
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Attempting to save batch of {} analyses", analyses.len());
+    let bucket = env::var("S3_BUCKET")?;
+    println!("[S3] Using bucket: {}", bucket);
 
-    let sanitized: Vec<SeoAnalysis> = analyses.iter().map(sanitize_analysis).collect();
-
-    let mut tx = pool.begin().await?;
-
-    let rows = sqlx::query(
-        r#"
-        INSERT INTO sites (url, language, title, canonical_url, content_text)
-        SELECT 
-            s.url, s.language, s.title, s.canonical_url, s.content_text
-        FROM jsonb_to_recordset($1::jsonb) AS s(
-            url text,
-            language text,
-            title text,
-            canonical_url text,
-            content_text text
-        )
-        RETURNING id
-        "#,
-    )
-    .bind(serde_json::to_value(&sanitized)?)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    let site_ids: Vec<i32> = rows.iter().map(|row| row.get("id")).collect();
-
-    let mut all_meta_tags = Vec::new();
-    for (idx, analysis) in sanitized.iter().enumerate() {
-        for meta_tag in &analysis.meta_tags {
-            all_meta_tags.push(serde_json::json!({
-                "analysis_id": site_ids[idx],
-                "name": meta_tag.name,
-                "content": meta_tag.content
-            }));
+    for (chunk_idx, chunk) in analyses.chunks(10_000).enumerate() {
+        let mut jsonl = Vec::new();
+        for analysis in chunk {
+            let sanitized = sanitize_analysis(analysis);
+            let json = serde_json::to_string(&sanitized)?;
+            jsonl.push(json);
         }
-    }
 
-    if !all_meta_tags.is_empty() {
-        sqlx::query(
-            r#"
-            INSERT INTO meta_tags (analysis_id, name, content)
-            SELECT 
-                (elem->>'analysis_id')::integer,
-                (elem->>'name')::text,
-                (elem->>'content')::text
-            FROM jsonb_array_elements($1::jsonb) AS elem
-            "#,
-        )
-        .bind(serde_json::to_value(all_meta_tags)?)
-        .execute(&mut *tx)
-        .await?;
-    }
+        let body = jsonl.join("\n");
+        if body.is_empty() {
+            continue;
+        }
 
-    tx.commit().await?;
+        let partition = if let Some(first) = chunk.first() {
+            format!("{:02x}", md5::compute(&first.url).0[0])
+        } else {
+            continue;
+        };
+
+        let key = format!(
+            "analyses/partition={}/batch_{}.jsonl",
+            partition,
+            Uuid::new_v4()
+        );
+
+        println!(
+            "[S3] Uploading chunk {} to {}/{}",
+            chunk_idx + 1,
+            bucket,
+            key
+        );
+
+        client
+            .put_object()
+            .bucket(&bucket)
+            .key(&key)
+            .content_type("application/jsonlines")
+            .content_length(body.len() as i64)
+            .body(ByteStream::from(body.into_bytes()))
+            .send()
+            .await?;
+
+        println!("[S3] Successfully uploaded chunk {}", chunk_idx + 1);
+    }
 
     Ok(())
 }

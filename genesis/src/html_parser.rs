@@ -111,6 +111,7 @@ fn is_ignored_file_type(path: &str) -> bool {
         ".zip", ".rar", ".tar", ".gz", ".7z", ".bz2", ".iso", // Audio/Video
         ".mp3", ".mp4", ".wav", ".avi", ".mov", ".wmv", ".flv", ".ogg", ".ogv", ".webm", ".m4a",
         ".m4v", ".3gp", // Other
+        ".mpg",
         ".exe", ".dmg", ".pkg", ".deb", ".rpm", ".apk", ".ipa",
     ];
 
