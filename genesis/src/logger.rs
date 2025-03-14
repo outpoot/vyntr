@@ -22,7 +22,8 @@ impl AsyncLogger {
         let mut rng = rand::rng();
         let idx = rng.random_range(0..ANIME_NAMES.len());
         let name = ANIME_NAMES[idx];
-        let filename = format!("crawler-{}.log", name);
+        std::fs::create_dir_all("logs")?;
+        let filename = format!("logs/crawler-{}.log", name);
 
         println!("Creating log file: {}", filename);
 
