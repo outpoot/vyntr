@@ -137,14 +137,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    let sites_file = fs::read_to_string("data/sites.txt")?;
+    let base_dir = std::env::current_dir()?;
+
+    let sites_file = fs::read_to_string(base_dir.join("data/sites.txt").to_str().unwrap())?;
     let seeds: Vec<String> = sites_file
         .lines()
         .map(|line| line.trim().to_string())
         .filter(|s| !s.is_empty())
         .collect();
 
-    let proxy_manager = ProxyManager::new("data/proxies.txt")?;
+    let proxy_manager = ProxyManager::new(base_dir.join("data/proxies.txt").to_str().unwrap())?;
     let pool = create_db_pool().await?;
     let visited = Arc::new(Mutex::new(HashSet::new()));
     let pages_count = Arc::new(AtomicUsize::new(0));
