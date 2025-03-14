@@ -2,6 +2,7 @@ use chrono::Local;
 use rand::Rng;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -22,10 +23,13 @@ impl AsyncLogger {
         let mut rng = rand::rng();
         let idx = rng.random_range(0..ANIME_NAMES.len());
         let name = ANIME_NAMES[idx];
-        std::fs::create_dir_all("logs")?;
-        let filename = format!("logs/crawler-{}.log", name);
 
-        println!("Creating log file: {}", filename);
+        let log_dir = PathBuf::from("logs");
+        std::fs::create_dir_all(&log_dir)?;
+
+        let filename = log_dir.join(format!("crawler-{}.log", name));
+
+        println!("Creating log file: {}", filename.display());
 
         let file = OpenOptions::new()
             .create(true)
