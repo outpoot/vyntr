@@ -33,6 +33,7 @@ impl AsyncLogger {
 
         let file = OpenOptions::new()
             .create(true)
+            .read(true)
             .write(true)
             .append(true)
             .open(&filename)?;
