@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::{env, path::PathBuf};
+use std::{env, path::PathBuf, io::{self, Write}};
 use tantivy::{collector::TopDocs, query::QueryParser, Index};
 use tracing::info;
 
@@ -21,17 +21,10 @@ fn get_latest_index() -> Result<PathBuf> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        println!("Usage: search <query>");
-        return Ok(());
-    }
-
     tracing_subscriber::fmt()
         .with_env_filter("info")
         .init();
 
-    let query_str = &args[1..].join(" ");
     let index_path = get_latest_index()?;
     info!("Using index at: {}", index_path.display());
 
@@ -46,23 +39,40 @@ async fn main() -> Result<()> {
     let meta_field = schema.get_field("meta_tags").unwrap();
 
     let query_parser = QueryParser::for_index(&index, vec![title_field, content_field, meta_field]);
-    let query = query_parser.parse_query(query_str)?;
 
-    let top_docs = searcher.search(&query, &TopDocs::with_limit(MAX_RESULTS))?;
-    
-    println!("\nSearch results for: {}", query_str);
-    println!("{}", std::iter::repeat('─').take(50).collect::<String>());
+    loop {
+        print!("\nEnter search query (or 'quit' to exit): ");
+        io::stdout().flush()?;
 
-    for (score, doc_address) in top_docs {
-        let retrieved_doc = searcher.doc(doc_address)?;
-        let empty_value = tantivy::schema::Value::Str("".to_string());
-        println!(
-            "Score: {:.2}\nTitle: {}\nURL: {}\n{}",
-            score,
-            retrieved_doc.get_first(title_field).map(|v| v.as_text().unwrap_or_default()).unwrap_or_default(),
-            retrieved_doc.get_first(url_field).unwrap_or_else(|| &empty_value).as_text().unwrap_or_default(),
-            "─".repeat(50)
-        );
+        let mut query_str = String::new();
+        io::stdin().read_line(&mut query_str)?;
+        let query_str = query_str.trim();
+
+        if query_str.eq_ignore_ascii_case("quit") {
+            break;
+        }
+
+        if query_str.is_empty() {
+            continue;
+        }
+
+        let query = query_parser.parse_query(query_str)?;
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(MAX_RESULTS))?;
+        
+        println!("\nSearch results for: {}", query_str);
+        println!("{}", "─".repeat(50));
+
+        for (score, doc_address) in top_docs {
+            let retrieved_doc = searcher.doc(doc_address)?;
+            let empty_value = tantivy::schema::Value::Str("".to_string());
+            println!(
+                "Score: {:.2}\nTitle: {}\nURL: {}\n{}",
+                score,
+                retrieved_doc.get_first(title_field).map(|v| v.as_text().unwrap_or_default()).unwrap_or_default(),
+                retrieved_doc.get_first(url_field).unwrap_or_else(|| &empty_value).as_text().unwrap_or_default(),
+                "─".repeat(50)
+            );
+        }
     }
 
     Ok(())
