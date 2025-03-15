@@ -17,7 +17,7 @@ pub struct Proxy {
 
 #[derive(Clone)]
 pub struct ProxyManager {
-    proxies: Arc<Vec<Proxy>>,
+    pub proxies: Arc<Vec<Proxy>>,
     current: Arc<AtomicUsize>,
 }
 

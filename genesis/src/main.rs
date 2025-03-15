@@ -146,8 +146,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filter(|s| !s.is_empty())
         .collect();
 
+    println!("Found {} seed URLs", seeds.len());
+    if seeds.is_empty() {
+        println!("No seed URLs found in data/sites.txt, exiting...");
+        std::process::exit(1);
+    }
+
     let proxy_manager = ProxyManager::new(base_dir.join("data/proxies.txt").to_str().unwrap())?;
+    println!("Loaded {} proxies", proxy_manager.proxies.len());
     let pool = create_db_pool().await?;
+    println!("Connected to database");
     let visited = Arc::new(Mutex::new(HashSet::new()));
     let pages_count = Arc::new(AtomicUsize::new(0));
     let db_semaphore = Arc::new(Semaphore::new(DB_CONCURRENCY));

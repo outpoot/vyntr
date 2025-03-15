@@ -24,6 +24,7 @@ pub struct MetaTag {
 }
 
 pub async fn create_db_pool() -> Result<Client, Box<dyn std::error::Error>> {
+    println!("Creating S3 client");
     dotenvy::dotenv().ok();
 
     let bucket = env::var("S3_BUCKET")?;
