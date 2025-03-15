@@ -1,4 +1,4 @@
-FROM rust:1.70-slim as builder
+FROM rust:1.81-slim as builder
 
 WORKDIR /app
 RUN apt-get update && apt-get install -y pkg-config libssl-dev
