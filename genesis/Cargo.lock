@@ -1140,6 +1140,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "genesis"
+version = "0.1.0"
+dependencies = [
+ "aws-config",
+ "aws-sdk-s3",
+ "chrono",
+ "colored",
+ "dotenvy",
+ "futures",
+ "lazy_static",
+ "lol_html",
+ "md5",
+ "rand 0.9.0",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-stream",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "getrandom"
 version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2542,29 +2565,6 @@ checksum = "da046153aa2352493d6cb7da4b6e5c0c057d8a1d0a9aa8560baffdd945acd414"
 dependencies = [
  "ring",
  "untrusted",
-]
-
-[[package]]
-name = "search-rust"
-version = "0.1.0"
-dependencies = [
- "aws-config",
- "aws-sdk-s3",
- "chrono",
- "colored",
- "dotenvy",
- "futures",
- "lazy_static",
- "lol_html",
- "md5",
- "rand 0.9.0",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
- "tokio-stream",
- "url",
- "uuid",
 ]
 
 [[package]]
