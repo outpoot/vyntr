@@ -30,10 +30,17 @@ lazy_static::lazy_static! {
 
 impl ProxyManager {
     pub fn new(proxy_file: &str) -> std::io::Result<Self> {
+        println!("Reading proxy file: {}", proxy_file); // debug added
         let content = fs::read_to_string(proxy_file)?;
+        let lines: Vec<&str> = content.lines().collect();
+        println!("Proxy file has {} lines", lines.len()); // debug added
+
         let mut proxies = Vec::new();
 
-        for line in content.lines() {
+        for (i, line) in lines.into_iter().enumerate() {
+            if i % 1000 == 0 {
+                println!("Processed {} proxy lines", i); // debug progress
+            }
             let parts: Vec<&str> = line.split(':').collect();
             if parts.len() == 4 {
                 let ip = match IpAddr::from_str(parts[0]) {
@@ -63,7 +70,7 @@ impl ProxyManager {
                 });
             }
         }
-
+        println!("Loaded {} proxies", proxies.len()); // final debug
         Ok(ProxyManager {
             proxies: Arc::new(proxies),
             current: Arc::new(AtomicUsize::new(0)),
