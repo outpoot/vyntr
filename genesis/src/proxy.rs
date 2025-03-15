@@ -1,9 +1,9 @@
+use reqwest::Client;
 use std::fs;
 use std::net::IpAddr;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use reqwest::Client;
 
 #[derive(Clone)]
 #[allow(dead_code)]
@@ -38,39 +38,56 @@ impl ProxyManager {
         let mut proxies = Vec::new();
 
         for (i, line) in lines.into_iter().enumerate() {
-            if i % 1000 == 0 {
+            if i % 100 == 0 {
+                // Increased frequency of progress updates
                 println!("Processed {} proxy lines", i); // debug progress
             }
             let parts: Vec<&str> = line.split(':').collect();
             if parts.len() == 4 {
+                println!(
+                    "Initializing proxy {}: {}:{}@{}:{}",
+                    i, parts[2], parts[3], parts[0], parts[1]
+                );
+
                 let ip = match IpAddr::from_str(parts[0]) {
                     Ok(ip) => ip,
-                    Err(_) => {
+                    Err(e) => {
+                        println!("Warning: Invalid IP {} at line {}: {}", parts[0], i, e);
                         IpAddr::from_str("0.0.0.0").unwrap()
                     }
                 };
 
                 let proxy_url = format!("http://{}:{}", parts[0], parts[1]);
-                let client = Client::builder()
+                println!("Building client for proxy {}: {}", i, proxy_url);
+
+                match Client::builder()
                     .proxy(
                         reqwest::Proxy::all(&proxy_url)
                             .unwrap()
-                            .basic_auth(parts[2], parts[3])
+                            .basic_auth(parts[2], parts[3]),
                     )
                     .timeout(std::time::Duration::from_secs(30))
                     .build()
-                    .expect("Failed to build client");
-
-                proxies.push(Proxy {
-                    addr: proxy_url,
-                    ip,
-                    username: parts[2].to_string(),
-                    password: parts[3].to_string(),
-                    client,
-                });
+                {
+                    Ok(client) => {
+                        println!("Successfully built client for proxy {}", i);
+                        proxies.push(Proxy {
+                            addr: proxy_url,
+                            ip,
+                            username: parts[2].to_string(),
+                            password: parts[3].to_string(),
+                            client,
+                        });
+                    }
+                    Err(e) => {
+                        println!("Failed to build client for proxy {}: {}", i, e);
+                    }
+                }
+            } else {
+                println!("Warning: Invalid proxy format at line {}: {}", i, line);
             }
         }
-        println!("Loaded {} proxies", proxies.len()); // final debug
+        println!("Successfully loaded {} proxies", proxies.len());
         Ok(ProxyManager {
             proxies: Arc::new(proxies),
             current: Arc::new(AtomicUsize::new(0)),
