@@ -3,12 +3,31 @@
 	import SearchIcon from './SearchIcon.svelte';
 	import { Search } from 'lucide-svelte';
 	import TrailingButtons from './TrailingButtons.svelte';
+	import { goto } from '$app/navigation';
 
 	let searchIcon: any;
 	let isFocused = $state(false);
-	let searchValue = $state('');
+
+	let {
+		value = $bindable(),
+		enableAutocomplete = $bindable(true),
+		showTrailingButtons = true
+	} = $props();
+
+	let searchValue = $state(value);
 	let selectedIndex = $state(-1);
 	let inputRef: HTMLInputElement | null = $state(null);
+
+	$effect(() => {
+		if (inputRef) {
+			inputRef.focus();
+			isFocused = true;
+		}
+
+		if (searchValue !== value) {
+			enableAutocomplete = true;
+		}
+	});
 
 	const suggestions = [
 		'How do I cook pasta',
@@ -23,16 +42,28 @@
 		'How do I cook breakfast'
 	];
 	let filteredSuggestions = $derived(
-		suggestions.filter((s) => s.toLowerCase().includes(searchValue.toLowerCase()))
+		suggestions.filter((s) => s.toLowerCase().includes(searchValue?.toLowerCase()))
 	);
 	let hasSuggestions = $derived(filteredSuggestions.length > 0);
-	let showSuggestions = $derived(Boolean(searchValue && hasSuggestions && isFocused));
+	let showSuggestions = $derived(
+		Boolean(enableAutocomplete && searchValue && hasSuggestions && isFocused)
+	);
+
+	function handleSubmit(event?: Event) {
+		if (event) event.preventDefault();
+		enableAutocomplete = false;
+
+		if (searchValue.trim()) {
+			goto(`/search?q=${encodeURIComponent(searchValue.trim())}`);
+		}
+	}
 
 	function selectSuggestion(s: string) {
 		searchValue = s;
 		selectedIndex = -1;
-		inputRef?.blur();
+		handleSubmit();
 	}
+
 	function handleKeydown(e: KeyboardEvent) {
 		if (!hasSuggestions) return;
 		switch (e.key) {
@@ -55,7 +86,7 @@
 	}
 </script>
 
-<div class="relative w-full max-w-3xl">
+<form class="relative w-full max-w-3xl" onsubmit={handleSubmit}>
 	<SearchIcon
 		bind:this={searchIcon}
 		size={24}
@@ -67,22 +98,21 @@
 		{showSuggestions}
 		focused={isFocused}
 		bind:ref={inputRef}
-		class={`h-12 w-full ${
+		class={`h-11 w-full ${
 			showSuggestions
 				? 'rounded-b-none border-b-0 border-l-2 border-r-2 border-t-2'
 				: 'rounded-b-[1.5rem] border-2'
-		} bg-primary pl-14 text-base text-primary-foreground shadow-xl focus:border-ring focus:outline-none sm:h-14 sm:pl-16 sm:text-lg md:h-16`}
+		} bg-primary pl-14 text-base text-primary-foreground shadow-lg focus:border-ring focus:outline-none sm:h-12 sm:pl-16 sm:text-lg md:h-14`}
 		onfocus={() => {
 			searchIcon?.animate();
 			isFocused = true;
 		}}
 		onblur={() => (isFocused = false)}
 		onkeydown={handleKeydown}
-		autofocus
 	>
 		{#each filteredSuggestions as suggestion, i}
 			<button
-				class="flex w-full items-center gap-3 px-6 py-2 text-left text-base text-primary-foreground {i ===
+				class="flex w-full items-center gap-3 rounded-md px-6 py-1 text-left text-base text-primary-foreground {i ===
 				selectedIndex
 					? 'bg-muted'
 					: ''} hover:bg-muted"
@@ -97,8 +127,13 @@
 				{suggestion}
 			</button>
 		{/each}
-		<div class="mb-2 flex justify-center">
-			<TrailingButtons />
-		</div>
+
+		{#if showTrailingButtons}
+			<div class="mb-2 flex justify-center">
+				<TrailingButtons />
+			</div>
+		{:else}
+			<div class="mb-3"></div>
+		{/if}
 	</Input>
-</div>
+</form>
