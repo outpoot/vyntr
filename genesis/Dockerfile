@@ -6,9 +6,9 @@ COPY . .
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && \
     cargo build --release --target-dir /usr/src/genesis/target
 
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y ca-certificates libssl1.1 \
+RUN apt-get update && apt-get install -y ca-certificates libssl3 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
