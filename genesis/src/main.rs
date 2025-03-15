@@ -31,7 +31,7 @@ use crate::proxy::ProxyManager;
 use crate::db::{create_db_pool, save_analyses_batch, SeoAnalysis};
 use crate::network::try_tunnel_request;
 
-const MAX_PAGES: usize = 200_000_000;
+const MAX_PAGES: usize = 50_000;
 const CONCURRENCY: usize = 5_000;
 const DB_CONCURRENCY: usize = 20;
 const BATCH_SIZE: usize = 2_000;
