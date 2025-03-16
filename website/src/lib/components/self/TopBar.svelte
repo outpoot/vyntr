@@ -8,7 +8,7 @@
     const sidebar = useSidebar();
 </script>
 
-<header class="sticky top-0 z-50 flex h-14 items-center justify-between border-b border-border bg-sidebar px-4 text-sidebar-foreground">
+<header class="sticky top-0 z-50 flex h-[3.3rem] items-center justify-between border-b border-border bg-sidebar px-4 text-sidebar-foreground">
     <div class="flex items-center">
         <div class="relative">
             {#if !sidebar.open}
