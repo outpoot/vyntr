@@ -54,7 +54,7 @@
 		enableAutocomplete = false;
 
 		if (searchValue.trim()) {
-			goto(`/search?q=${encodeURIComponent(searchValue.trim())}`);
+			window.location.href = `/search?q=${encodeURIComponent(searchValue.trim())}`;
 		}
 	}
 

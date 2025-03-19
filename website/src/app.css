@@ -37,14 +37,14 @@
   }
 
   .dark {
-    --background: 20 14.3% 4.1%;
+    --background: 240 12% 13%;
     --foreground: 240 9% 13%;
     --muted: 240 5% 18%;
     --muted-foreground: 24 5.4% 63.9%;
     --popover: 240 12% 13%;
     --popover-foreground: 60 12% 87%;
-    --card: 20 14.3% 4.1%;
-    --card-foreground: 240 9% 13%;
+    --card: 240 12% 13%;
+    --card-foreground: 60 9% 87%;
     --border: 240 5% 18%;
     --input: 240 5% 18%;
     --primary: 240 9% 13%;
@@ -81,5 +81,14 @@
     font-optical-sizing: auto;
     font-weight: 900;
     font-style: normal;
+  }
+
+  .break-long-words {
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    -webkit-hyphens: auto;
+    -ms-hyphens: auto;
+    hyphens: auto;
+    word-break: break-word;
   }
 }

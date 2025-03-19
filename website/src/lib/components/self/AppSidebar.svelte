@@ -1,6 +1,6 @@
 <script lang="ts">
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
-	import { Plus, Search, MessageSquarePlus, Menu } from 'lucide-svelte';
+	import { Search, MessageSquarePlus, Menu } from 'lucide-svelte';
 	import { Button } from '../ui/button';
 
 	const searchHistory = {

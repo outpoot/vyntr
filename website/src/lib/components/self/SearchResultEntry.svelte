@@ -5,6 +5,16 @@
 
 	let { result } = $props<{ result: SearchResult }>();
 	let imageError = $state(false);
+
+	function formatDate(dateStr: string | null) {
+		if (!dateStr) return '';
+		const date = new Date(dateStr);
+		return date.toLocaleDateString(undefined, { 
+			year: 'numeric',
+			month: 'long',
+			day: 'numeric'
+		});
+	}
 </script>
 
 <div class="relative rounded-xl bg-primary p-4">
@@ -54,11 +64,11 @@
 
 	<div class="mt-2 flex text-sm text-muted-foreground">
 		<span>
-			<span class="text-muted-foreground/60">
-				{result.date.getDate()}
-				{result.date.toLocaleString('default', { month: 'long' })}
-				{result.date.getFullYear()} ―
-			</span>
+			{#if result.date}
+				<span class="text-muted-foreground/60">
+					{formatDate(result.date)} ―
+				</span>
+			{/if}
 			{result.preview}
 		</span>
 	</div>

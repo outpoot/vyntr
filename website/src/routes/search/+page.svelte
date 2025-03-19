@@ -1,26 +1,57 @@
 <script lang="ts">
 	import SearchInput from '$lib/components/self/SearchInput.svelte';
 	import SearchResults from '$lib/components/self/SearchResults.svelte';
+	import DetailsPanelBliptext from '$lib/components/self/DetailsPanelBliptext.svelte';
 
 	import { page } from '$app/state';
 
 	let query = $state(page.url.searchParams.get('q') || '');
+	let searchData = $state({ web: [], bliptext: null });
+	let isLoading = $state(false);
+
+	async function performSearch() {
+		isLoading = true;
+
+		try {
+			const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+			const data = await response.json();
+			searchData = data;
+		} catch (err) {
+			console.error('Search error:', err);
+		} finally {
+			isLoading = false;
+		}
+	}
+
+	$effect(() => {
+		performSearch();
+	});
 </script>
 
 <svelte:head>
-	<title>Vyntr: {query}</title>
+	<title>{query} - Vyntr Search</title>
 </svelte:head>
 
-<div class="min-h-screen w-full bg-sidebar-background">
+<div class="bg-sidebar-background min-h-screen w-full">
 	<div class="sticky top-0 z-10 w-full">
 		<div class="mx-auto flex max-w-2xl justify-center py-4">
 			<SearchInput bind:value={query} enableAutocomplete={false} showTrailingButtons={false} />
 		</div>
 	</div>
 
-	<div class="w-full">
-		<div class="mx-auto max-w-2xl py-4 px-8">
-			<SearchResults />
+	<div class="mx-auto max-w-[1200px] px-8">
+		<div class="flex gap-8">
+			<div class="flex-1">
+				{#if !isLoading}
+					<SearchResults results={searchData.web} />
+				{:else}
+					<!-- skeleton here would be better i think -->
+					<h1>Loading results</h1>
+				{/if}
+			</div>
+			{#if searchData.bliptext}
+				<DetailsPanelBliptext details={searchData.bliptext} />
+			{/if}
 		</div>
 	</div>
 </div>
