@@ -11,7 +11,6 @@ export interface BliptextSearchDetail {
     article: ArticleData;
 }
 
-// ===== THESE ARE FILLERS, TO BE REPLACED =====
 export interface PersonSearchDetail extends BaseSearchDetail {
     type: 'person';
     name: string;
@@ -26,7 +25,6 @@ export interface CalculatorSearchDetail extends BaseSearchDetail {
     type: 'calculator';
     expression: string;
     result: string;
-    history: string[];
 }
 
 export interface MovieSearchDetail extends BaseSearchDetail {
@@ -39,7 +37,6 @@ export interface MovieSearchDetail extends BaseSearchDetail {
     rating?: string;
     runtime?: string;
 }
-// ============================================
 
 export type SearchDetail = 
     | BliptextSearchDetail 

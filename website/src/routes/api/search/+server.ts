@@ -109,13 +109,12 @@ export async function GET({ url }) {
         throw error(400, 'Query parameter "q" is required');
     }
 
-    // ========================================================
+    // ==================== WEB SEARCH ====================
     // to-be replaced with actual search results
     const webResults = MOCK_RESULTS.map(result => ({
         ...result,
         date: result.date.toISOString()
     }));
-    // ========================================================
 
     // ==================== BLIPTEXT SEARCH ====================
     const bliptextResults = await searchBliptext(query);
