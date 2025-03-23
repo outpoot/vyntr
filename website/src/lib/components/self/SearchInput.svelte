@@ -100,9 +100,9 @@
 		bind:ref={inputRef}
 		class={`h-11 w-full ${
 			showSuggestions
-				? 'rounded-b-none border-b-0 border-l-2 border-r-2 border-t-2'
-				: 'rounded-b-[1.5rem] border-2'
-		} bg-primary pl-14 text-base text-primary-foreground shadow-lg focus:border-ring focus:outline-none sm:h-12 sm:pl-16 sm:text-lg md:h-14`}
+				? 'rounded-b-none border-b-0 border-l border-r border-t'
+				: 'rounded-b-[1.5rem] border'
+		} bg-card pl-14 text-base text-primary-foreground shadow-lg focus:outline-none sm:h-12 sm:pl-16 sm:text-lg md:h-14 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)]`}
 		onfocus={() => {
 			searchIcon?.animate();
 			isFocused = true;
@@ -112,7 +112,7 @@
 	>
 		{#each filteredSuggestions as suggestion, i}
 			<button
-				class="flex w-full items-center gap-3 rounded-md px-6 py-1 text-left text-base text-primary-foreground {i ===
+				class="flex w-full items-center gap-3 rounded-sm px-6 py-1 text-left text-base text-primary-foreground {i ===
 				selectedIndex
 					? 'bg-muted'
 					: ''} hover:bg-muted"

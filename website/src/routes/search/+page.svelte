@@ -3,8 +3,10 @@
 	import SearchResults from '$lib/components/self/SearchResults.svelte';
 	import DetailsPanelBliptext from '$lib/components/self/DetailsPanelBliptext.svelte';
 	import DetailsPanelMath from '$lib/components/self/DetailsPanelMath.svelte';
-	
+	import DetailsPanelTimer from '$lib/components/self/DetailsPanelTimer.svelte';
+
 	import { isMathExpression, evaluateMathExpression } from '$lib/mathUtils';
+	import { parseTimerQuery } from '$lib/timerUtils';
 	import type { CalculatorSearchDetail } from '$lib/types/searchDetails';
 
 	import { page } from '$app/state';
@@ -12,13 +14,21 @@
 	let query = $state(page.url.searchParams.get('q') || '');
 	let searchData = $state({ web: [], bliptext: null });
 	let mathResult = $state<CalculatorSearchDetail | null>(null);
+	let timerSeconds = $state<number | null>(null);
 	let isLoading = $state(false);
 
 	async function performSearch() {
 		isLoading = true;
 		mathResult = null;
+		timerSeconds = null;
 
-		if (isMathExpression(query)) {
+		// Check for timer request
+		const timerDuration = parseTimerQuery(query);
+		if (timerDuration !== null) {
+			timerSeconds = timerDuration;
+		}
+		// Check for math expression if not a timer
+		else if (isMathExpression(query)) {
 			try {
 				const result = await evaluateMathExpression(query);
 				mathResult = {
@@ -50,19 +60,18 @@
 <svelte:head>
 	<title>{query} - Vyntr Search</title>
 </svelte:head>
-
 <div class="bg-sidebar-background min-h-screen w-full">
-	<div class="sticky top-0 z-10 w-full">
-		<div class="mx-auto flex max-w-2xl justify-center py-4">
-			<SearchInput bind:value={query} enableAutocomplete={false} showTrailingButtons={false} />
-		</div>
-	</div>
+	<div class="container mx-auto ml-0 max-w-full px-8 md:ml-8 lg:ml-16 xl:ml-24">
+		<div class="flex flex-col justify-start gap-8 lg:flex-row mt-4">
+			<div class="w-full flex-1 space-y-4 lg:max-w-[700px] ">
+				<SearchInput bind:value={query} enableAutocomplete={false} showTrailingButtons={false} />
 
-	<div class="mx-auto max-w-[1200px] px-8">
-		<div class="flex gap-8">
-			<div class="flex-1">
 				{#if !isLoading}
-					{#if mathResult}
+					{#if timerSeconds !== null}
+						<div class="mb-6">
+							<DetailsPanelTimer seconds={timerSeconds} />
+						</div>
+					{:else if mathResult}
 						<div class="mb-6">
 							<DetailsPanelMath details={mathResult} />
 						</div>
@@ -73,7 +82,7 @@
 					<h1>Loading results</h1>
 				{/if}
 			</div>
-			
+
 			{#if searchData.bliptext}
 				<DetailsPanelBliptext details={searchData.bliptext} />
 			{/if}

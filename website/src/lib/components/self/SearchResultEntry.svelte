@@ -17,7 +17,7 @@
 	}
 </script>
 
-<div class="relative rounded-xl bg-primary p-4 shadow-md border">
+<div class="relative rounded-xl bg-card p-4 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md border">
 	<div class="flex items-start justify-between">
 		<a href={result.url} class="group inline-flex flex-col">
 			<div class="flex items-center gap-2">

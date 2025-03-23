@@ -9,8 +9,7 @@
 </svelte:head>
 
 <div class="relative flex h-screen flex-col items-center gap-3" style="padding-top: 23vh">
-	<h1 class="montserrat-black relative select-none text-[4rem] text-primary-foreground sm:text-[5rem] md:text-[8rem] flex items-center gap-2">
-		<img src="favicon.svg" alt="Vyntr logo" class="w-[5rem] mr-2" />
+	<h1 class="montserrat-black relative select-none text-[4rem] text-primary-foreground sm:text-[5rem] md:text-[8rem]">
 		Vyntr
 	</h1>
     

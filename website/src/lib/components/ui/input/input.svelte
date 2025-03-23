@@ -37,7 +37,7 @@
 	/>
 	{#if showSuggestions}
 		<div
-			class="absolute left-0 right-0 top-full z-50 rounded-b-[1.5rem] border-x-2 border-b-2 border-ring bg-primary"
+			class="absolute left-0 right-0 top-full z-50 rounded-b-[1.5rem] border-x border-b bg-primary"
 		>
 			<Separator class="mx-auto w-[95%] " />
 			<div class="max-h-[500px] overflow-y-auto py-2">
