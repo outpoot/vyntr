@@ -4,7 +4,7 @@
 	import type { HTMLInputAttributes } from 'svelte/elements';
 
 	type Props = HTMLInputAttributes & {
-		children: () => any;
+		children?: () => any;
 		ref?: any;
 		type?: HTMLInputAttributes['type'];
 		class?: string;
@@ -36,13 +36,15 @@
 		{...restProps}
 	/>
 	{#if showSuggestions}
-		<div
-			class="absolute left-0 right-0 top-full z-50 rounded-b-[1.5rem] border-x border-b bg-primary"
-		>
-			<Separator class="mx-auto w-[95%] " />
-			<div class="max-h-[500px] overflow-y-auto py-2">
-				{@render children()}
+		{#if children}
+			<div
+				class="absolute left-0 right-0 top-full z-50 rounded-b-[1.5rem] border-x border-b bg-primary"
+			>
+				<Separator class="mx-auto w-[95%] " />
+				<div class="max-h-[500px] overflow-y-auto py-2">
+					{@render children()}
+				</div>
 			</div>
-		</div>
+		{/if}
 	{/if}
 </div>
