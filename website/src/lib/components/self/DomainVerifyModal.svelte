@@ -2,7 +2,13 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Button } from '$lib/components/ui/button';
 	import * as Select from '$lib/components/ui/select/index.js';
+
 	import { ExternalLink } from 'lucide-svelte';
+
+	import { onDestroy } from 'svelte';
+	import { goto } from '$app/navigation';
+
+	import Status from './Status.svelte';
 	import Step from './Step.svelte';
 	import Codeblock from './Codeblock.svelte';
 
@@ -12,6 +18,11 @@
 	// State
 	let provider = $state('any');
 	let copied = $state(false);
+	let verifying = $state(false);
+	let verified = $state(false);
+	let nextRetryTime = $state<number | null>(null);
+	let remainingTime = $state(0);
+	let cooldownInterval: number | undefined = $state();
 
 	// Constants
 	const domainProviders = [
@@ -20,16 +31,67 @@
 	];
 	const registrarExamples = ['GoDaddy', 'Namecheap', 'Cloudflare', 'Porkbun', 'others'];
 
-	// derived value for select trigger
 	const triggerContent = $derived(
 		domainProviders.find((p) => p.value === provider)?.label ?? 'Select provider'
 	);
+	const cleanDomain = $derived(domain.replace(/^https?:\/\//, ''));
 
 	function copyToClipboard() {
 		navigator.clipboard.writeText(token);
 		copied = true;
 		setTimeout(() => (copied = false), 2000);
 	}
+
+	function updateRemainingTime() {
+		if (!nextRetryTime) return;
+		const now = Date.now();
+		remainingTime = Math.max(0, Math.ceil((nextRetryTime - now) / 1000));
+
+		if (remainingTime === 0) {
+			clearInterval(cooldownInterval);
+			cooldownInterval = undefined;
+			nextRetryTime = null;
+		}
+	}
+
+	async function verifyDomain() {
+		if (verifying || nextRetryTime) return;
+
+		try {
+			verifying = true;
+			const response = await fetch('/api/domains/verify', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ domain, verificationToken: token })
+			});
+
+			if (response.ok) {
+				verified = true;
+			} else {
+				nextRetryTime = Date.now() + 5000;
+				updateRemainingTime();
+				cooldownInterval = setInterval(updateRemainingTime, 100);
+			}
+		} catch (error) {
+			console.error('Verification failed:', error);
+			nextRetryTime = Date.now() + 5000;
+			updateRemainingTime();
+			cooldownInterval = setInterval(updateRemainingTime, 100);
+		} finally {
+			verifying = false;
+		}
+	}
+
+	function handleClose() {
+		open = false;
+		if (verified) {
+			goto(`/domains/${cleanDomain}`);
+		}
+	}
+
+	onDestroy(() => {
+		clearInterval(cooldownInterval);
+	});
 </script>
 
 <Dialog.Root bind:open>
@@ -114,16 +176,38 @@
 					</Step>
 				{/if}
 			</div>
+
+			{#if verified}
+				<Status
+					type="success"
+					message="Domain verified successfully! You can now close this window."
+				/>
+			{/if}
 		</div>
 
 		<Dialog.Footer class="gap-3">
-			<Button variant="outline" onclick={() => (open = false)}>Cancel</Button>
-			<Button variant="default" class="gap-2">
-				{provider === 'cloudflare' ? 'Connect Cloudflare' : 'Check Verification'}
-				{#if provider === 'cloudflare'}
-					<ExternalLink class="h-4 w-4" />
-				{/if}
+			<Button variant="outline" onclick={handleClose}>
+				{verified ? 'Close' : 'Cancel'}
 			</Button>
+			{#if !verified}
+				<Button
+					variant="default"
+					class="gap-2"
+					disabled={verifying || Boolean(nextRetryTime)}
+					onclick={() => (provider === 'cloudflare' ? null : verifyDomain())}
+				>
+					{#if verifying}
+						Checking...
+					{:else if nextRetryTime}
+						Retry in {remainingTime}s
+					{:else}
+						{provider === 'cloudflare' ? 'Connect Cloudflare' : 'Check Verification'}
+					{/if}
+					{#if provider === 'cloudflare'}
+						<ExternalLink class="h-4 w-4" />
+					{/if}
+				</Button>
+			{/if}
 		</Dialog.Footer>
 	</Dialog.Content>
 </Dialog.Root>

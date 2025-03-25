@@ -73,7 +73,7 @@
 				<DropdownMenu.Separator />
 				<DropdownMenu.Item>Settings</DropdownMenu.Item>
 				<DropdownMenu.Item>Support</DropdownMenu.Item>
-				<DropdownMenu.Item onclick={() => goto("/domains/register")}>Domains</DropdownMenu.Item>
+				<DropdownMenu.Item onclick={() => goto('/domains/register')}>Domains</DropdownMenu.Item>
 				<DropdownMenu.Separator />
 				<DropdownMenu.Item>Logout</DropdownMenu.Item>
 			</DropdownMenu.Content>
