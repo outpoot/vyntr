@@ -1,50 +1,46 @@
 <script lang="ts">
-	import { cn } from '$lib/utils.js';
-	import { Separator } from '$lib/components/ui/separator';
-	import type { HTMLInputAttributes } from 'svelte/elements';
+	import type { HTMLInputAttributes, HTMLInputTypeAttribute } from "svelte/elements";
+	import type { WithElementRef } from "bits-ui";
+	import { cn } from "$lib/utils.js";
 
-	type Props = HTMLInputAttributes & {
-		children?: () => any;
-		ref?: any;
-		type?: HTMLInputAttributes['type'];
-		class?: string;
-		focused?: boolean;
-		showSuggestions?: boolean;
-	};
+	type InputType = Exclude<HTMLInputTypeAttribute, "file">;
+
+	type Props = WithElementRef<
+		Omit<HTMLInputAttributes, "type"> &
+			({ type: "file"; files?: FileList } | { type?: InputType; files?: undefined })
+	>;
 
 	let {
-		children,
 		ref = $bindable(null),
 		value = $bindable(),
 		type,
+		files = $bindable(),
 		class: className,
-		showSuggestions = false,
 		...restProps
 	}: Props = $props();
 </script>
 
-<div class="relative w-full">
+{#if type === "file"}
 	<input
 		bind:this={ref}
 		class={cn(
-			'flex w-full border bg-background px-3 py-2 text-2xl placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 md:text-xl',
-			showSuggestions ? 'rounded-b-none rounded-t-[1.5rem] border-b-0' : 'rounded-[1.5rem]',
+			"border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-base file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+			className
+		)}
+		type="file"
+		bind:files
+		bind:value
+		{...restProps}
+	/>
+{:else}
+	<input
+		bind:this={ref}
+		class={cn(
+			"border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-base file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
 			className
 		)}
 		{type}
 		bind:value
 		{...restProps}
 	/>
-	{#if showSuggestions}
-		{#if children}
-			<div
-				class="absolute left-0 right-0 top-full z-50 rounded-b-[1.5rem] border-x border-b bg-primary"
-			>
-				<Separator class="mx-auto w-[95%] " />
-				<div class="max-h-[500px] overflow-y-auto py-2">
-					{@render children()}
-				</div>
-			</div>
-		{/if}
-	{/if}
-</div>
+{/if}

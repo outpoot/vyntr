@@ -13,7 +13,7 @@
         </div>
         <div class="min-w-0 flex-1 flex flex-col">
             <TopBar />
-            <main class="flex-1 overflow-y-auto">
+            <main class="flex-1 overflow-y-auto relative">
                 {@render children()}
             </main>
         </div>

@@ -6,12 +6,12 @@
 
 <ModeWatcher />
 <div class="fixed inset-0 bg-background"></div>
-<div class="skibidi fixed inset-0"></div>
+<div class="graddygrad fixed inset-0"></div>
 
 {@render children()}
 
 <style>
-	.skibidi {
+	.graddygrad {
 		z-index: 9999;
 		background: conic-gradient(
 			from 50deg at 50% 10%,

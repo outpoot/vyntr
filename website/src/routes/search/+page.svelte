@@ -60,32 +60,29 @@
 <svelte:head>
 	<title>{query} - Vyntr Search</title>
 </svelte:head>
-<div class="bg-sidebar-background min-h-screen w-full">
-	<div class="container mx-auto ml-0 max-w-full px-8 md:ml-8 lg:ml-16 xl:ml-24">
-		<div class="flex flex-col justify-start gap-8 lg:flex-row mt-4">
-			<div class="w-full flex-1 space-y-4 lg:max-w-[700px] ">
-				<SearchInput bind:value={query} enableAutocomplete={false} showTrailingButtons={false} />
 
-				{#if !isLoading}
-					{#if timerSeconds !== null}
-						<div class="mb-6">
-							<DetailsPanelTimer seconds={timerSeconds} />
-						</div>
-					{:else if mathResult}
-						<div class="mb-6">
-							<DetailsPanelMath details={mathResult} />
-						</div>
-					{/if}
-					<SearchResults results={searchData.web} />
-				{:else}
-					<!-- skeleton here would be better i think -->
-					<h1>Loading results</h1>
-				{/if}
-			</div>
+<div class="px-8 md:ml-8 lg:ml-16 xl:ml-24">
+	<div class="mt-4 flex flex-col justify-start gap-4 lg:max-w-[700px]">
+		<SearchInput bind:value={query} enableAutocomplete={false} showTrailingButtons={false} />
 
-			{#if searchData.bliptext}
-				<DetailsPanelBliptext details={searchData.bliptext} />
+		{#if !isLoading}
+			{#if timerSeconds !== null}
+				<div class="mb-6">
+					<DetailsPanelTimer seconds={timerSeconds} />
+				</div>
+			{:else if mathResult}
+				<div class="mb-6">
+					<DetailsPanelMath details={mathResult} />
+				</div>
 			{/if}
-		</div>
+			<SearchResults results={searchData.web} />
+		{:else}
+			<!-- skeleton here would be better i think -->
+			<h1>Loading results</h1>
+		{/if}
 	</div>
+
+	{#if searchData.bliptext}
+		<DetailsPanelBliptext details={searchData.bliptext} />
+	{/if}
 </div>
