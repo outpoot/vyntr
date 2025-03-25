@@ -5,6 +5,7 @@
 	import { useSidebar } from '$lib/components/ui/sidebar';
 	import { fade, scale } from 'svelte/transition';
 	import { mode, toggleMode } from 'mode-watcher';
+	import { goto } from '$app/navigation';
 
 	const sidebar = useSidebar();
 
@@ -72,6 +73,7 @@
 				<DropdownMenu.Separator />
 				<DropdownMenu.Item>Settings</DropdownMenu.Item>
 				<DropdownMenu.Item>Support</DropdownMenu.Item>
+				<DropdownMenu.Item onclick={() => goto("/domains/register")}>Domains</DropdownMenu.Item>
 				<DropdownMenu.Separator />
 				<DropdownMenu.Item>Logout</DropdownMenu.Item>
 			</DropdownMenu.Content>
