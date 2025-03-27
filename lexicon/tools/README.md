@@ -7,6 +7,9 @@ To generate the needed `wn.json` in `vyntr/lexicon/wn.json`:
 3. (optional) Install `uv` if you haven't already:
     - macOS and Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`
     - Windows: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
-4. Run `uv run convert_wn_xml_to_json.py`
+4. Run `uv init .`
+5. Run `uv run src/convert_wn_xml_to_json.py`
 
 And wait a few seconds.
+
+If you run into missing modules, add them with `uv add <module>`. Example: `uv add python-dotenv`
