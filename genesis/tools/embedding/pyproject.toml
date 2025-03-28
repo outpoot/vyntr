@@ -1,0 +1,24 @@
+[project]
+name = "embedding"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "beautifulsoup4>=4.13.3",
+    "boto3>=1.37.22",
+    "chardet>=5.2.0",
+    "fastembed>=0.6.0",
+    "h5py>=3.13.0",
+    "huggingface-hub>=0.29.3",
+    "light-embed>=0.1.2",
+    "nltk>=3.9.1",
+    "onnxruntime-gpu>=1.20.0",
+    "sentence-transformers>=4.0.1",
+    "tiktoken>=0.9.0",
+    "torch>=2.4.1",
+    "transformers>=4.50.1",
+]
+
+[[tool.uv.index]]
+url = "https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-11/pypi/simple/"
