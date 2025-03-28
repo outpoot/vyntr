@@ -1,5 +1,5 @@
 use aws_sdk_s3::{
-    config::{retry, timeout, Region},
+    config::{http::HttpRequest, retry, timeout, Region, RequestChecksumCalculation},
     primitives::ByteStream,
     Client,
 };
@@ -29,12 +29,15 @@ pub async fn create_db_pool() -> Result<Client, Box<dyn std::error::Error>> {
 
     let bucket = env::var("S3_BUCKET")?;
     let region_env = env::var("S3_REGION").unwrap_or_else(|_| "us-east-1".to_string());
+    let endpoint_url = env::var("S3_ENDPOINT")?;
 
     println!("[S3] Using region: {}", region_env);
+    println!("[S3] Using endpoint: {}", endpoint_url);
     println!("[S3] Using bucket: {}", bucket);
 
     let shared_config = aws_config::from_env()
         .region(Region::new(region_env))
+        .endpoint_url(endpoint_url) // Add this line
         .load()
         .await;
 
@@ -51,6 +54,7 @@ pub async fn create_db_pool() -> Result<Client, Box<dyn std::error::Error>> {
                 .read_timeout(std::time::Duration::from_secs(30))
                 .build(),
         )
+        .request_checksum_calculation(RequestChecksumCalculation::WhenRequired)
         .build();
 
     Ok(Client::from_conf(s3_config))
@@ -129,6 +133,10 @@ pub async fn save_analyses_batch(
             .content_type("application/jsonlines")
             .content_length(body.len() as i64)
             .body(ByteStream::from(body.into_bytes()))
+            .customize()
+            .mutate_request(|req: &mut HttpRequest| {
+                req.headers_mut().remove("x-amz-checksum-crc32");
+            })
             .send()
             .await?;
 
