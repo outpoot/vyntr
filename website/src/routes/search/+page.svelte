@@ -62,27 +62,33 @@
 </svelte:head>
 
 <div class="px-8 md:ml-8 lg:ml-16 xl:ml-24">
-	<div class="mt-4 flex flex-col justify-start gap-4 lg:max-w-[700px]">
+	<div class="mt-4 flex flex-col justify-start gap-4">
 		<SearchInput bind:value={query} enableAutocomplete={false} showTrailingButtons={false} />
 
-		{#if !isLoading}
-			{#if timerSeconds !== null}
-				<div class="mb-6">
-					<DetailsPanelTimer seconds={timerSeconds} />
-				</div>
-			{:else if mathResult}
-				<div class="mb-6">
-					<DetailsPanelMath details={mathResult} />
+		<div class="flex flex-row gap-4">
+			<div class="min-w-0 lg:max-w-[700px]">
+				{#if !isLoading}
+					{#if timerSeconds !== null}
+						<div class="mb-6">
+							<DetailsPanelTimer seconds={timerSeconds} />
+						</div>
+					{:else if mathResult}
+						<div class="mb-6">
+							<DetailsPanelMath details={mathResult} />
+						</div>
+					{/if}
+					<SearchResults results={searchData.web} />
+				{:else}
+					<!-- skeleton here would be better i think -->
+					<h1>Loading results</h1>
+				{/if}
+			</div>
+
+			{#if searchData.bliptext}
+				<div class="w-64 flex-shrink-0">
+					<DetailsPanelBliptext details={searchData.bliptext} />
 				</div>
 			{/if}
-			<SearchResults results={searchData.web} />
-		{:else}
-			<!-- skeleton here would be better i think -->
-			<h1>Loading results</h1>
-		{/if}
+		</div>
 	</div>
-
-	{#if searchData.bliptext}
-		<DetailsPanelBliptext details={searchData.bliptext} />
-	{/if}
 </div>
