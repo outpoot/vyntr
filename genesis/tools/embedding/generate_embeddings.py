@@ -7,11 +7,10 @@ import torch
 import psycopg2
 import psycopg2.extras
 from pgvector.psycopg2 import register_vector
-from transformers import AutoTokenizer, AutoModel, BitsAndBytesConfig
+from transformers import AutoTokenizer, AutoModel
 from tqdm import tqdm
 import math
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 from collections import defaultdict
 from dotenv import load_dotenv
 import sys
@@ -36,14 +35,11 @@ except Exception as e:
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 ANALYSES_DIR_PATTERN = "../analyses/partition=*/*.jsonl"
 DB_TABLE_NAME = "document_chunk_embeddings"
-CHUNK_BATCH_SIZE = 1024  # Conservative batch size for testing
-DB_BATCH_SIZE = 5000
+CHUNK_BATCH_SIZE = 512  # Small batch size for debugging
+DB_BATCH_SIZE = 100  # Small DB batch size
 MAX_SEQ_LENGTH = 512
 CHUNK_OVERLAP = 50
-MAX_CPU_WORKERS = os.cpu_count()
-ETA_UPDATE_INTERVAL_SEC = 10
-MAX_INPUT_TOKENS = 1_000_000
-USE_QUANTIZATION = False  # Temporarily disable quantization for debugging
+SAFETY_BUFFER = 15
 
 # --- Logging Setup ---
 logging.basicConfig(
@@ -108,26 +104,6 @@ def extract_relevant_text(entry):
     combined_text = f"Title: {title}\nDescription: {description}\nContent: {content}".strip()
     return combined_text
 
-def estimate_chunks_in_file_fast(filepath, approx_chars_per_chunk):
-    """Estimates chunks based on character count, avoiding tokenization."""
-    count = 0
-    try:
-        with open(filepath, "r", encoding="utf-8") as f:
-            for line in f:
-                try:
-                    entry = json.loads(line)
-                    text = extract_relevant_text(entry)
-                    if text:
-                        count += math.ceil(len(text) / approx_chars_per_chunk)
-                except json.JSONDecodeError:
-                    pass
-                except Exception:
-                    pass
-    except Exception as e:
-        logging.debug(f"Ignoring error during fast estimation for {filepath}: {e}")
-        pass
-    return count
-
 def chunk_text_by_tokens(text, tokenizer, max_tokens, overlap):
     """
     Enhanced chunking with robust error handling and logging.
@@ -137,7 +113,6 @@ def chunk_text_by_tokens(text, tokenizer, max_tokens, overlap):
 
     logging.debug(f"chunk_text_by_tokens received text of length {len(text)} chars")
 
-    SAFETY_BUFFER = 15  # Increased buffer for safety
     num_special_tokens = tokenizer.num_special_tokens_to_add(pair=False)
     effective_max_tokens = max(1, max_tokens - num_special_tokens - SAFETY_BUFFER)
 
@@ -150,11 +125,10 @@ def chunk_text_by_tokens(text, tokenizer, max_tokens, overlap):
         return []
 
     try:
-        # Add safety limit to prevent OOM during tokenization
         tokens = tokenizer.encode(
             text, 
             add_special_tokens=False, 
-            max_length=MAX_INPUT_TOKENS,
+            max_length=MAX_SEQ_LENGTH,
             truncation=True
         )
         logging.debug(f"Input text tokenized into {len(tokens)} tokens")
@@ -210,7 +184,6 @@ def process_file_yield_chunks_fs(filepath, tokenizer, max_tokens, overlap):
     Returns the number of chunks yielded by this file.
     """
     chunk_counts = defaultdict(int)
-    total_chunks_yielded = 0
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             for line_num, line in enumerate(f, 1):
@@ -234,7 +207,6 @@ def process_file_yield_chunks_fs(filepath, tokenizer, max_tokens, overlap):
                     for i, chunk_text in enumerate(chunks):
                         yield (url, start_chunk_id + i, chunk_text)
                     chunk_counts[url] += len(chunks)
-                    total_chunks_yielded += len(chunks)
 
                 except json.JSONDecodeError:
                     logging.warning(
@@ -244,14 +216,13 @@ def process_file_yield_chunks_fs(filepath, tokenizer, max_tokens, overlap):
                     logging.warning(
                         f"Error processing line {line_num} in {filepath}: {e}"
                     )
-        return total_chunks_yielded
     except Exception as e:
         logging.error(f"Failed to open or process file {filepath}: {e}")
-        return 0
-
 
 def encode_batch_hf_automodel(model, tokenizer, chunk_batch, device, max_seq_len):
-    """Encode batch with enhanced device tracking and debugging."""
+    """Encode batch with extra device debugging."""
+    logging.debug(f"--- Entering encode_batch_hf_automodel ---")
+    logging.debug(f"Target device for this batch: {device}")
     try:
         inputs = tokenizer(
             chunk_batch,
@@ -260,33 +231,37 @@ def encode_batch_hf_automodel(model, tokenizer, chunk_batch, device, max_seq_len
             truncation=True,
             max_length=max_seq_len,
         )
-        logging.debug(f"Input tensor device before move: {inputs['input_ids'].device}")
+        # Log input device states
+        for k, v in inputs.items():
+            logging.debug(f"Input tensor '{k}' device BEFORE move: {v.device}")
 
-        inputs = {k: v.to(device) for k, v in inputs.items()}
+        logging.debug(f"Attempting to move input tensors to: {device}")
+        inputs_on_device = {}
+        for k, v in inputs.items():
+            inputs_on_device[k] = v.to(device)
+            logging.debug(f"Input tensor '{k}' device AFTER move: {inputs_on_device[k].device}")
+        inputs = inputs_on_device
 
+        # Verify devices before model call
         input_device = inputs['input_ids'].device
-        model_embedding_device = "N/A"
         try:
             if hasattr(model, 'embeddings') and hasattr(model.embeddings, 'word_embeddings'):
                 model_embedding_device = model.embeddings.word_embeddings.weight.device
+                logging.debug(f"Final check - Model embedding weight device: {model_embedding_device}")
             else:
                 model_embedding_device = next(model.parameters()).device
-            logging.debug(f"Input tensor device after move: {input_device}")
-            logging.debug(f"Model embedding weight device: {model_embedding_device}")
+                logging.debug(f"Final check - Model first parameter device: {model_embedding_device}")
+            
+            logging.debug(f"Final check - Input tensor device: {input_device}")
             if input_device != model_embedding_device:
-                logging.error(f"CRITICAL DEVICE MISMATCH: Input on {input_device}, Embeddings on {model_embedding_device}")
+                logging.error(f"CRITICAL DEVICE MISMATCH: Input on {input_device}, Model on {model_embedding_device}")
         except Exception as log_err:
-            logging.warning(f"Could not determine model embedding device: {log_err}")
-            try:
-                first_param_device = next(model.parameters()).device
-                logging.debug(f"Fallback check - First model parameter device: {first_param_device}")
-                if input_device != first_param_device:
-                    logging.error(f"CRITICAL DEVICE MISMATCH (Fallback): Input on {input_device}, First Param on {first_param_device}")
-            except:
-                pass
+            logging.warning(f"Could not verify model device: {log_err}")
 
+        logging.debug("Calling model(**inputs)...")
         with torch.no_grad():
             outputs = model(**inputs)
+        logging.debug("Model call successful.")
 
         embeddings = outputs.last_hidden_state.mean(dim=1)
         embeddings = embeddings.cpu().numpy()
@@ -296,323 +271,146 @@ def encode_batch_hf_automodel(model, tokenizer, chunk_batch, device, max_seq_len
         try:
             input_dev_err = inputs['input_ids'].device
             model_dev_err = next(model.parameters()).device
-            logging.error(f"Error occurred with input device: {input_dev_err}, model device: {model_dev_err}")
+            logging.error(f"Error state - Input device: {input_dev_err}, Model device: {model_dev_err}")
         except:
             pass
         raise
 
-
 if __name__ == "__main__":
     logging.info(
-        "--- Starting Embedding Generation from Filesystem (No Pre-computation) ---"
+        "--- Starting Embedding Generation from Filesystem (Debug Mode) ---"
     )
     overall_start_time = time.time()
 
+    # Model loading with explicit verification
+    logging.info(f"Loading model and tokenizer: {MODEL_NAME}")
     model = None
     tokenizer = None
     device = "cpu"
-    quantization_config = None
-    load_kwargs = {}
 
     try:
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=True)
+        model = AutoModel.from_pretrained(MODEL_NAME)
+        logging.info("Model loaded from pretrained onto CPU initially.")
 
-        if USE_QUANTIZATION:
+        if torch.cuda.is_available():
+            detected_device = "cuda"
+            logging.info(f"CUDA available. Moving model to {detected_device}...")
+            model.to(detected_device)
+            device = detected_device
+
+            # Verify model placement
             try:
-                import bitsandbytes
-                quantization_config = BitsAndBytesConfig(load_in_8bit=True)
-                load_kwargs['quantization_config'] = quantization_config
-                load_kwargs['device_map'] = "auto"
-                logging.info("Attempting to load with 8-bit quantization and device_map='auto'.")
-            except ImportError:
-                logging.warning("bitsandbytes not found. Quantization disabled.")
-                USE_QUANTIZATION = False
-
-        model = AutoModel.from_pretrained(
-            MODEL_NAME,
-            **load_kwargs
-        )
-        logging.info("Model loaded from pretrained.")
-
-        if not USE_QUANTIZATION:
-            if torch.cuda.is_available():
-                detected_device = "cuda"
-                model.to(detected_device)
-                device = detected_device
-                logging.info(f"Manually moved model to device: {device}")
-            else:
-                device = "cpu"
-                logging.info(f"CUDA not available. Model remains on CPU: {device}")
+                emb_device = model.embeddings.word_embeddings.weight.device
+                logging.info(f"VERIFICATION: Embedding weights device: {emb_device}")
+                if str(emb_device) != device:
+                    logging.error(f"VERIFICATION FAILED: Embeddings on wrong device: {emb_device}")
+                
+                first_param_device = next(model.parameters()).device
+                logging.info(f"VERIFICATION: First parameter device: {first_param_device}")
+                if str(first_param_device) != device:
+                    logging.error(f"VERIFICATION FAILED: Parameters on wrong device: {first_param_device}")
+            except Exception as verify_err:
+                logging.error(f"Device verification failed: {verify_err}")
         else:
-            if torch.cuda.is_available():
-                try:
-                    param_device = next(model.parameters()).device
-                    if 'cuda' in str(param_device):
-                        device = "cuda"
-                        logging.info(f"Model loaded with device_map. Primary compute device: {param_device}")
-                    else:
-                        device = "cpu"
-                        logging.info(f"Model loaded with device_map, but on CPU: {param_device}")
-                except Exception as e:
-                    logging.warning(f"Could not determine device from parameters ({e}), defaulting to cuda if available.")
-                    device = "cuda" if torch.cuda.is_available() else "cpu"
-            else:
-                device = "cpu"
-                logging.info("CUDA not available. Using CPU.")
-            logging.info(f"Using device_map='auto'. Primary device for inputs: {device}")
+            device = "cpu"
+            logging.info("CUDA not available. Using CPU.")
 
-        embedding_dim = model.config.hidden_size
         model.eval()
-        logging.info(f"Model ready. Target device for inputs: {device}. Example parameter device: {next(model.parameters()).device}")
+        logging.info(f"Model ready on device: {device}")
 
     except Exception as e:
-        logging.error(f"Failed to load model/tokenizer or place on device: {e}", exc_info=True)
+        logging.error(f"Model loading failed: {e}", exc_info=True)
         sys.exit(1)
 
     conn = connect_db()
     try:
+        embedding_dim = model.config.hidden_size
         create_table_if_not_exists(conn, embedding_dim)
 
-        logging.info(f"Finding files matching '{ANALYSES_DIR_PATTERN}'...")
-        base_search_path = os.path.abspath(
-            os.path.join(script_dir, ANALYSES_DIR_PATTERN)
-        )
-        logging.info(f"Searching with absolute path pattern: {base_search_path}")
-        all_files = glob.glob(base_search_path, recursive=True)
-        total_files = len(all_files)
-
+        # Process only one file for debugging
+        all_files = glob.glob(os.path.abspath(os.path.join(script_dir, ANALYSES_DIR_PATTERN)))
         if not all_files:
-            logging.error(
-                f"No .jsonl files found matching pattern: {base_search_path}"
-            )
+            logging.error("No files found.")
             sys.exit(1)
-        logging.info(f"Found {total_files} files to process.")
 
-        # --- Estimate Total Chunks (Using Faster Logic) ---
-        estimated_total_chunks = 0
-        logging.info(
-            "Estimating total chunks (using fast character-based approximation)..."
-        )
-        approx_chars_per_chunk = MAX_SEQ_LENGTH * 3  # Heuristic: ~3 chars per token
-        sample_size = min(100, max(10, total_files // 20))
-        if sample_size > len(all_files):
-            sample_size = len(all_files)
+        test_file = all_files[0]
+        logging.warning(f"DEBUG MODE: Processing single file: {test_file}")
 
-        if sample_size == 0:
-            logging.warning("No files found to sample for estimation.")
-            estimated_total_chunks = total_files
-        else:
-            sample_files = np.random.choice(all_files, sample_size, replace=False)
-            estimation_chunks = 0
-            with ThreadPoolExecutor(
-                max_workers=max(1, os.cpu_count() // 2),  # Reduced workers for estimation
-                thread_name_prefix="EstimateFast"
-            ) as executor:
-                future_to_file_est = {
-                    executor.submit(estimate_chunks_in_file_fast, f, approx_chars_per_chunk): f
-                    for f in sample_files
-                }
-                for future in tqdm(
-                    as_completed(future_to_file_est),
-                    total=len(sample_files),
-                    desc="Estimating Chunks (Fast)",
-                    unit="file",
-                ):
-                    filepath = future_to_file_est[future]
-                    try:
-                        count = future.result()
-                        estimation_chunks += count
-                    except Exception as est_exc:
-                        logging.warning(
-                            f"Error during fast chunk estimation for {filepath}: {est_exc}"
-                        )
-
-            if sample_size > 0 and estimation_chunks > 0:
-                avg_chunks_per_file = estimation_chunks / sample_size
-                estimated_total_chunks = int(avg_chunks_per_file * total_files)
-                logging.info(
-                    f"Estimated chunks/file: {avg_chunks_per_file:.2f} (from {sample_size} samples)"
-                )
-                logging.info(f"Estimated total chunks: {estimated_total_chunks}")
-            else:
-                estimated_total_chunks = total_files
-                logging.warning("Chunk estimation failed. Using file count for progress.")
-
-        # Adjust CHUNK_BATCH_SIZE based on available VRAM
-        if torch.cuda.is_available():
-            free_vram = torch.cuda.get_device_properties(0).total_memory
-            # Start with conservative batch size, can be tuned
-            CHUNK_BATCH_SIZE = min(4096, max(512, int(free_vram / (2 ** 30) * 512)))
-            logging.info(f"Adjusted CHUNK_BATCH_SIZE to {CHUNK_BATCH_SIZE} based on VRAM")
-
-        # --- Start Processing ---
-        logging.info("Starting main processing (Embedding and DB Insert)...")
-        process_start_time = time.time()
+        # Sequential processing
         chunks_processed_count = 0
-        files_processed_count = 0
         db_batch = []
         model_input_batch = []
-        last_eta_print_time = time.time()
 
-        pbar_total = max(1, estimated_total_chunks)
-        pbar_unit = "chunk" if estimated_total_chunks > total_files else "file"
-        pbar = tqdm(total=pbar_total, desc="Processing", unit=pbar_unit)
+        # Process single file
+        chunk_generator = process_file_yield_chunks_fs(
+            test_file, tokenizer, MAX_SEQ_LENGTH, CHUNK_OVERLAP
+        )
 
-        with ThreadPoolExecutor(
-            max_workers=MAX_CPU_WORKERS, thread_name_prefix="ProcessFile"
-        ) as executor:
-            submitted_futures = {
-                executor.submit(
-                    process_file_yield_chunks_fs,
-                    f,
-                    tokenizer,
-                    MAX_SEQ_LENGTH,
-                    CHUNK_OVERLAP,
-                )
-                for f in all_files
-            }
-            active_iterators = []
-            completed_futures_queue = []
+        for url, chunk_id, chunk_text in tqdm(chunk_generator, desc="Processing Chunks"):
+            model_input_batch.append((url, chunk_id, chunk_text))
 
-            while submitted_futures or active_iterators:
+            if len(model_input_batch) >= CHUNK_BATCH_SIZE:
+                batch_to_encode_data = model_input_batch[:CHUNK_BATCH_SIZE]
+                model_input_batch = model_input_batch[CHUNK_BATCH_SIZE:]
+                batch_texts = [item[2] for item in batch_to_encode_data]
+
                 try:
-                    for future in as_completed(submitted_futures, timeout=0.1):
-                        completed_futures_queue.append(future)
-                        submitted_futures.remove(future)
-                except TimeoutError:
-                    pass
+                    logging.debug(f"Processing batch of {len(batch_to_encode_data)} chunks")
+                    embeddings = encode_batch_hf_automodel(
+                        model, tokenizer, batch_texts, device, MAX_SEQ_LENGTH
+                    )
 
-                while completed_futures_queue:
-                    future = completed_futures_queue.pop(0)
+                    for j, (url_b, chunk_id_b, _) in enumerate(batch_to_encode_data):
+                        db_batch.append((url_b, chunk_id_b, embeddings[j].tolist()))
+                    chunks_processed_count += len(batch_to_encode_data)
+
+                except Exception as model_err:
+                    logging.error(f"Fatal model error: {model_err}", exc_info=True)
+                    sys.exit(1)
+
+                # Process DB batch if full
+                if len(db_batch) >= DB_BATCH_SIZE:
                     try:
-                        iterator = future.result()
-                        active_iterators.append(iterator)
-                    except Exception as future_exc:
-                        logging.error(f"File processing task failed: {future_exc}", exc_info=True)
-                        files_processed_count += 1
-                        if pbar_unit == "file": pbar.update(1)
-
-                iterators_to_remove = []
-                if len(model_input_batch) < CHUNK_BATCH_SIZE:
-                    for i, iterator in enumerate(active_iterators):
-                        try:
-                            url, chunk_id, chunk_text = next(iterator)
-                            model_input_batch.append((url, chunk_id, chunk_text))
-
-                            if len(model_input_batch) >= CHUNK_BATCH_SIZE:
-                                break
-
-                        except StopIteration:
-                            iterators_to_remove.append(iterator)
-                            files_processed_count += 1
-                            if pbar_unit == "file": pbar.update(1)
-                        except Exception as gen_exc:
-                            logging.error(f"Error consuming chunk generator: {gen_exc}", exc_info=True)
-                            iterators_to_remove.append(iterator)
-                            files_processed_count += 1
-                            if pbar_unit == "file": pbar.update(1)
-
-                for it in iterators_to_remove:
-                    if it in active_iterators:
-                        active_iterators.remove(it)
-
-                process_model_batch_now = len(model_input_batch) >= CHUNK_BATCH_SIZE
-                is_finalizing = not submitted_futures and not active_iterators and model_input_batch
-
-                if process_model_batch_now or is_finalizing:
-                    items_to_process_count = min(len(model_input_batch), CHUNK_BATCH_SIZE)
-                    if items_to_process_count > 0:
-                        batch_to_encode_data = model_input_batch[:items_to_process_count]
-                        model_input_batch = model_input_batch[items_to_process_count:]
-
-                        batch_texts = [item[2] for item in batch_to_encode_data]
-                        try:
-                            embeddings = encode_batch_hf_automodel(
-                                model,
-                                tokenizer,
-                                batch_texts,
-                                device,
-                                MAX_SEQ_LENGTH,
+                        with conn.cursor() as cur:
+                            psycopg2.extras.execute_values(
+                                cur,
+                                f"""
+                                INSERT INTO {DB_TABLE_NAME} (url, chunk_id, embedding)
+                                VALUES %s
+                                ON CONFLICT (url, chunk_id) DO UPDATE SET embedding = EXCLUDED.embedding;
+                                """,
+                                db_batch,
+                                template="(%s, %s, %s::vector)",
+                                page_size=len(db_batch),
                             )
+                        conn.commit()
+                        db_batch = []
+                    except psycopg2.Error as db_err:
+                        logging.error(f"Database batch insert failed: {db_err}")
+                        conn.rollback()
+                        db_batch = []
+                    except Exception as general_db_err:
+                        logging.error(f"Unexpected error during DB insert: {general_db_err}", exc_info=True)
+                        conn.rollback()
+                        db_batch = []
 
-                            for j, (url_b, chunk_id_b, _) in enumerate(batch_to_encode_data):
-                                db_batch.append(
-                                    (url_b, chunk_id_b, embeddings[j].tolist())
-                                )
+        # Process remaining batches
+        if model_input_batch:
+            batch_texts = [item[2] for item in model_input_batch]
+            try:
+                embeddings = encode_batch_hf_automodel(
+                    model, tokenizer, batch_texts, device, MAX_SEQ_LENGTH
+                )
 
-                            chunks_in_batch = len(batch_to_encode_data)
-                            chunks_processed_count += chunks_in_batch
-                            if pbar_unit == "chunk":
-                                pbar.update(chunks_in_batch)
-
-                        except Exception as model_err:
-                            logging.error(
-                                f"Error during model encoding batch: {model_err}",
-                                exc_info=True,
-                            )
-
-                process_db_batch_now = len(db_batch) >= DB_BATCH_SIZE
-                is_final_db_batch = not submitted_futures and not active_iterators and db_batch
-
-                if process_db_batch_now or is_final_db_batch:
-                    items_to_insert_count = len(db_batch)
-                    if items_to_insert_count > 0:
-                        try:
-                            with conn.cursor() as cur:
-                                psycopg2.extras.execute_values(
-                                    cur,
-                                    f"""
-                                    INSERT INTO {DB_TABLE_NAME} (url, chunk_id, embedding)
-                                    VALUES %s
-                                    ON CONFLICT (url, chunk_id) DO UPDATE SET embedding = EXCLUDED.embedding;
-                                    """,
-                                    db_batch,
-                                    template="(%s, %s, %s::vector)",
-                                    page_size=min(items_to_insert_count, DB_BATCH_SIZE),
-                                )
-                            conn.commit()
-                            db_batch = []
-                        except psycopg2.Error as db_err:
-                            logging.error(f"Database batch insert failed: {db_err}")
-                            conn.rollback()
-                            db_batch = []
-                        except Exception as general_db_err:
-                            logging.error(f"Unexpected error during DB insert: {general_db_err}", exc_info=True)
-                            conn.rollback()
-                            db_batch = []
-
-                current_time = time.time()
-                if current_time - last_eta_print_time > ETA_UPDATE_INTERVAL_SEC:
-                    elapsed_proc_time = current_time - process_start_time
-                    if chunks_processed_count > 0 and elapsed_proc_time > 1:
-                        chunks_per_sec = chunks_processed_count / elapsed_proc_time
-                        if pbar_unit == "chunk":
-                            items_remaining = pbar_total - chunks_processed_count
-                            if chunks_per_sec > 0 and items_remaining > 0:
-                                eta_seconds = items_remaining / chunks_per_sec
-                                eta_formatted = time.strftime(
-                                    "%H:%M:%S", time.gmtime(eta_seconds)
-                                )
-                            elif items_remaining <= 0:
-                                eta_formatted = "Done"
-                            else:
-                                eta_formatted = "Calculating..."
-
-                            pbar.set_postfix_str(
-                                f"Files: {files_processed_count}/{total_files}, Rate: {chunks_per_sec:.1f} chunks/s, ETA: {eta_formatted}"
-                            )
-                        else:
-                            pbar.set_postfix_str(
-                                f"Files: {files_processed_count}/{total_files}, Rate: {chunks_per_sec:.1f} chunks/s (File Prog.)"
-                            )
-
-                        last_eta_print_time = current_time
-
-        logging.info("Main processing loop finished.")
-        pbar.close()
+                for j, (url_b, chunk_id_b, _) in enumerate(model_input_batch):
+                    db_batch.append((url_b, chunk_id_b, embeddings[j].tolist()))
+                chunks_processed_count += len(model_input_batch)
+            except Exception as model_err:
+                logging.error(f"Fatal model error: {model_err}", exc_info=True)
+                sys.exit(1)
 
         if db_batch:
-            logging.warning(f"Found {len(db_batch)} items remaining in DB batch after main loop. Inserting...")
             try:
                 with conn.cursor() as cur:
                     psycopg2.extras.execute_values(
@@ -627,14 +425,15 @@ if __name__ == "__main__":
                         page_size=len(db_batch),
                     )
                 conn.commit()
-                logging.info("Safeguard final DB batch inserted successfully.")
                 db_batch = []
             except psycopg2.Error as db_err:
-                logging.error(f"Safeguard final database batch insert failed: {db_err}")
+                logging.error(f"Database batch insert failed: {db_err}")
                 conn.rollback()
+                db_batch = []
             except Exception as general_db_err:
-                logging.error(f"Unexpected error during safeguard final DB insert: {general_db_err}", exc_info=True)
+                logging.error(f"Unexpected error during DB insert: {general_db_err}", exc_info=True)
                 conn.rollback()
+                db_batch = []
 
     finally:
         if conn:
@@ -643,24 +442,9 @@ if __name__ == "__main__":
 
     overall_end_time = time.time()
     total_runtime = overall_end_time - overall_start_time
-    processing_runtime = 0
-    if 'process_start_time' in locals():
-        processing_runtime = overall_end_time - process_start_time
 
     logging.info("\n--- Embedding Generation Complete ---")
     logging.info(
         f"Total Runtime: {time.strftime('%H:%M:%S', time.gmtime(total_runtime))}"
     )
-    if processing_runtime > 0:
-        logging.info(f"  (Main Processing: {processing_runtime:.2f}s)")
-    logging.info(f"Total Files Processed: {files_processed_count}/{total_files}")
     logging.info(f"Total Chunks Embedded: {chunks_processed_count}")
-    if processing_runtime > 0 and chunks_processed_count > 0:
-        avg_chunks_per_sec = chunks_processed_count / processing_runtime
-        logging.info(
-            f"Average Processing Throughput: {avg_chunks_per_sec:.2f} chunks/sec"
-        )
-    elif chunks_processed_count > 0:
-        logging.info(
-            "Processing runtime was zero or negative, cannot calculate throughput."
-        )
