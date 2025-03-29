@@ -12,10 +12,9 @@ import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import defaultdict
 import boto3
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, ReadTimeoutError, ConnectionClosedError
 from botocore.config import Config
-# Import AWSRequest for type hinting if desired
-# from botocore.awsrequest import AWSRequest
+from urllib3.exceptions import IncompleteRead as Urllib3IncompleteRead
 from dotenv import load_dotenv
 
 dotenv_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', '.env')
@@ -28,8 +27,12 @@ CHUNK_BATCH_SIZE = 2048  # How many CHUNKS to feed to the GPU at once
 DB_BATCH_SIZE = 4096     # How many embeddings to insert into DB at once
 MAX_SEQ_LENGTH = 256     # Effective max length for all-MiniLM-L6-v2
 CHUNK_OVERLAP = 50
-MAX_CPU_WORKERS = os.cpu_count() or 4 # for S3 I/O and chunking
+MAX_CPU_WORKERS = (os.cpu_count() or 4) // 2  # Reduced for stability
 ETA_UPDATE_INTERVAL_SEC = 10 # how often to print ETA
+
+# --- Retry Configuration ---
+MAX_RETRIES = 3
+RETRY_DELAY_SECONDS = 5
 
 # --- Logging Setup ---
 logging.basicConfig(
@@ -122,41 +125,36 @@ def chunk_text_by_tokens(text, tokenizer, max_tokens, overlap):
 
 def remove_unsupported_headers(request, **kwargs):
     """Removes unsupported checksum headers from S3 requests for compatibility."""
-    # Check if headers exist before deleting to avoid potential KeyErrors
-    # if they aren't added by boto3 for a specific request type.
     if 'x-amz-checksum-mode' in request.headers:
-        # logging.debug(f"Removing x-amz-checksum-mode from request: {request.method} {request.url}")
         del request.headers['x-amz-checksum-mode']
     if 'x-amz-checksum-crc32' in request.headers:
-        # logging.debug(f"Removing x-amz-checksum-crc32 from request: {request.method} {request.url}")
         del request.headers['x-amz-checksum-crc32']
-    # Add others here if needed, e.g., x-amz-checksum-sha256, etc.
+
 def get_s3_client():
-    """Initializes and returns a boto3 S3 client with header modification."""
+    """Initializes and returns a boto3 S3 client with header modification and timeouts."""
     try:
         session = boto3.Session()
-        # Register the event handler to modify requests before sending
-        # 'before-send.*' catches events for all services,
-        # 'before-send.s3.*' would be specific to S3 operations.
         session.events.register('before-send.*', remove_unsupported_headers)
+
+        s3_config = Config(
+            connect_timeout=10,
+            read_timeout=300,   # 5 minutes for large files
+            retries={'max_attempts': 0}  # We handle retries ourselves
+        )
 
         s3_client = session.client(
             's3',
             endpoint_url=S3_ENDPOINT_URL,
             aws_access_key_id=AWS_ACCESS_KEY_ID,
             aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-            region_name=S3_REGION
-            # Optional: Explicitly set signature version if needed, though v4 is default
-            # config=boto3.session.Config(signature_version='s3v4')
+            region_name=S3_REGION,
+            config=s3_config
         )
-        # Test connection briefly (ListBuckets might not use checksums,
-        # but it's a basic connectivity check)
         s3_client.list_buckets()
         logging.info(f"Successfully connected to S3 endpoint: {S3_ENDPOINT_URL}")
         return s3_client
     except ClientError as e:
-        # Catch potential connection errors during client creation/test
-        logging.error(f"Failed to connect to S3 or initial test failed: {e}")
+        logging.error(f"Failed to connect to S3: {e}")
         raise
     except Exception as e:
         logging.error(f"An unexpected error occurred during S3 client creation: {e}")
@@ -168,30 +166,24 @@ def list_s3_files(s3_client, bucket, prefix):
     jsonl_files = []
     paginator = s3_client.get_paginator('list_objects_v2')
     try:
-        # First, find all partition folders
         partitions = set()
-        # Use Delimiter='/' to find common prefixes (folders)
         for page in paginator.paginate(Bucket=bucket, Prefix=prefix, Delimiter='/'):
             if 'CommonPrefixes' in page:
                 for prefix_obj in page['CommonPrefixes']:
                     prefix_path = prefix_obj['Prefix']
-                    # Check if it looks like a partition folder
                     if prefix_path.endswith('/') and '=' in prefix_path.split('/')[-2]:
                          partitions.add(prefix_path)
 
         if not partitions:
             logging.warning(f"No partition folders found directly under s3://{bucket}/{prefix}. Listing files directly in prefix.")
-            # Fall back to direct file listing in prefix if no partitions found
             for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
                 if 'Contents' in page:
                     for obj in page['Contents']:
                         key = obj['Key']
-                        # Ensure it's not a 'directory' object and ends with .jsonl
                         if not key.endswith('/') and key.lower().endswith('.jsonl'):
                             jsonl_files.append(key)
         else:
             logging.info(f"Found {len(partitions)} potential partition folders. Scanning within them...")
-            # List files within each identified partition prefix
             for partition_prefix in partitions:
                 logging.info(f"Scanning partition prefix: {partition_prefix}")
                 for page in paginator.paginate(Bucket=bucket, Prefix=partition_prefix):
@@ -209,13 +201,11 @@ def list_s3_files(s3_client, bucket, prefix):
     for file_key in jsonl_files:
         partition_name = "root_or_unknown"
         parts = file_key.split('/')
-        # Find the part that looks like partition=value
         for part in reversed(parts):
             if '=' in part:
-                partition_name = part # Or split further if needed: part.split('=')[1]
+                partition_name = part
                 break
         partition_counts[partition_name] += 1
-
 
     logging.info(f"Found {len(jsonl_files)} total .jsonl files across {len(partition_counts)} detected partitions/groups:")
     for p_name, count in sorted(partition_counts.items()):
@@ -226,90 +216,100 @@ def list_s3_files(s3_client, bucket, prefix):
 
     return jsonl_files
 
-
 def precompute_chunk_counts_s3(s3_client, bucket, s3_key, tokenizer, max_tokens, overlap):
-    """Worker function to read an S3 object and count items and chunks."""
+    """Worker function with retries to read an S3 object and count items and chunks."""
     item_count = 0
     chunk_count = 0
-    try:
-        response = s3_client.get_object(Bucket=bucket, Key=s3_key)
-        body = response['Body']
-        for line_bytes in body.iter_lines():
-            try:
-                line = line_bytes.decode('utf-8')
-                entry = json.loads(line)
-                if not entry.get("url"): continue
-                text = extract_relevant_text(entry)
-                if not text: continue
-                chunks = chunk_text_by_tokens(text, tokenizer, max_tokens, overlap)
-                if chunks:
-                    item_count += 1
-                    chunk_count += len(chunks)
-            except UnicodeDecodeError:
-                 logging.warning(f"Skipping line due to decode error in {s3_key}")
-            except json.JSONDecodeError:
-                 # Log less verbosely for common JSON errors unless debugging
-                 # logging.debug(f"Skipping invalid JSON line in {s3_key}")
-                 pass
-            except Exception as line_exc:
-                 logging.warning(f"Error processing line in {s3_key}: {line_exc}")
-                 pass # Continue processing other lines
-        body.close() # Ensure the body is closed
-    except ClientError as e:
-        # Check for the specific error if possible, otherwise log generically
-        error_code = e.response.get('Error', {}).get('Code')
-        logging.warning(f"S3 ClientError ({error_code}) during precompute for {s3_key}: {e}")
-    except Exception as e:
-        logging.warning(f"Precompute failed for {s3_key}: {e}")
-    return item_count, chunk_count
+    last_exception = None
+
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = s3_client.get_object(Bucket=bucket, Key=s3_key)
+            body = response['Body']
+            item_count = chunk_count = 0  # Reset counts for retry
+            
+            for line_bytes in body.iter_lines():
+                try:
+                    line = line_bytes.decode('utf-8')
+                    entry = json.loads(line)
+                    if not entry.get("url"): continue
+                    text = extract_relevant_text(entry)
+                    if not text: continue
+                    chunks = chunk_text_by_tokens(text, tokenizer, max_tokens, overlap)
+                    if chunks:
+                        item_count += 1
+                        chunk_count += len(chunks)
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    continue
+                except Exception as inner_e:
+                    logging.warning(f"Error processing line in {s3_key}: {inner_e}")
+                    continue
+            
+            body.close()
+            return item_count, chunk_count
+
+        except (ClientError, ReadTimeoutError, ConnectionClosedError, Urllib3IncompleteRead) as e:
+            last_exception = e
+            if attempt < MAX_RETRIES - 1:
+                delay = RETRY_DELAY_SECONDS * (attempt + 1)
+                logging.warning(f"Attempt {attempt + 1}/{MAX_RETRIES} failed for {s3_key}: {e}. Retrying in {delay}s...")
+                time.sleep(delay)
+            else:
+                logging.error(f"Precompute failed for {s3_key} after {MAX_RETRIES} attempts: {e}")
+                return 0, 0
+
+    return 0, 0
 
 def process_s3_object_yield_chunks(s3_client, bucket, s3_key, tokenizer, max_tokens, overlap):
-    """Worker function to read S3 object, process, and yield (url, chunk_id, chunk_text)."""
-    # Keep track of chunk IDs per URL *within this file*
-    chunk_counts_in_file = defaultdict(int)
-    try:
-        response = s3_client.get_object(Bucket=bucket, Key=s3_key)
-        body = response['Body']
-        line_num = 0
-        for line_bytes in body.iter_lines():
-            line_num += 1
-            try:
-                line = line_bytes.decode('utf-8')
-                entry = json.loads(line)
-                url = entry.get("url")
-                if not url:
-                    # logging.debug(f"Skipping line {line_num} in {s3_key}: missing URL")
+    """Worker function with retries to process S3 object and yield chunks."""
+    chunk_counts = defaultdict(int)
+    last_exception = None
+
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = s3_client.get_object(Bucket=bucket, Key=s3_key)
+            body = response['Body']
+            results = []
+            chunk_counts.clear()  # Reset state for retry
+            
+            for line_bytes in body.iter_lines():
+                try:
+                    line = line_bytes.decode('utf-8')
+                    entry = json.loads(line)
+                    url = entry.get("url")
+                    if not url: continue
+
+                    text = extract_relevant_text(entry)
+                    if not text: continue
+
+                    chunks = chunk_text_by_tokens(text, tokenizer, max_tokens, overlap)
+                    if not chunks: continue
+
+                    start_chunk_id = chunk_counts[url]
+                    for i, chunk_text in enumerate(chunks):
+                        results.append((url, start_chunk_id + i, chunk_text))
+                    chunk_counts[url] += len(chunks)
+
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    continue
+                except Exception as e:
+                    logging.warning(f"Error processing line in {s3_key}: {e}")
                     continue
 
-                text = extract_relevant_text(entry)
-                if not text:
-                    # logging.debug(f"Skipping line {line_num} in {s3_key} (URL: {url}): no text extracted")
-                    continue
+            body.close()
+            for result in results:
+                yield result
+            return
 
-                chunks = chunk_text_by_tokens(text, tokenizer, max_tokens, overlap)
-                if not chunks:
-                    # logging.debug(f"Skipping line {line_num} in {s3_key} (URL: {url}): no chunks generated")
-                    continue
-
-                # Assign chunk IDs sequentially for this URL within this file's processing context
-                start_chunk_id = chunk_counts_in_file[url]
-                for i, chunk_text in enumerate(chunks):
-                    yield (url, start_chunk_id + i, chunk_text)
-                chunk_counts_in_file[url] += len(chunks) # Update count for the next potential entry with the same URL in this file
-
-            except UnicodeDecodeError:
-                logging.warning(f"Skipping line {line_num} due to decode error in {s3_key}")
-            except json.JSONDecodeError:
-                logging.warning(f"Skipping invalid JSON on line {line_num} in {s3_key}")
-            except Exception as e:
-                logging.warning(f"Error processing line {line_num} in {s3_key}: {e}")
-        body.close() # Ensure the body is closed
-    except ClientError as e:
-        error_code = e.response.get('Error', {}).get('Code')
-        logging.error(f"S3 ClientError ({error_code}) processing object {s3_key}: {e}")
-    except Exception as e:
-        logging.error(f"Failed to process S3 object {s3_key}: {e}")
-
+        except (ClientError, ReadTimeoutError, ConnectionClosedError, Urllib3IncompleteRead) as e:
+            last_exception = e
+            if attempt < MAX_RETRIES - 1:
+                delay = RETRY_DELAY_SECONDS * (attempt + 1)
+                logging.warning(f"Attempt {attempt + 1}/{MAX_RETRIES} failed for {s3_key}: {e}. Retrying in {delay}s...")
+                time.sleep(delay)
+            else:
+                logging.error(f"Processing failed for {s3_key} after {MAX_RETRIES} attempts: {e}")
+                return
 
 def encode_batch_hf_automodel(model, tokenizer, chunk_batch, device, max_seq_len):
     """Encode batch using standard Hugging Face AutoModel."""
@@ -323,11 +323,8 @@ def encode_batch_hf_automodel(model, tokenizer, chunk_batch, device, max_seq_len
     inputs = {k: v.to(device) for k, v in inputs.items()}
     with torch.no_grad():
         outputs = model(**inputs)
-    # Mean pooling: Average the token embeddings across the sequence length dimension
     embeddings = outputs.last_hidden_state.mean(dim=1)
-    # Ensure embeddings are on CPU and converted to numpy for DB insertion
     return embeddings.cpu().numpy()
-
 
 if __name__ == "__main__":
     logging.info("--- Starting Embedding Generation from S3 ---")
@@ -340,20 +337,18 @@ if __name__ == "__main__":
 
     logging.info(f"Loading model and tokenizer: {MODEL_NAME}")
     try:
-        # Ensure trust_remote_code=True if model requires it, but be cautious
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=True)
         model = AutoModel.from_pretrained(MODEL_NAME)
         model.to(device)
-        embedding_dim = model.config.hidden_size # Get embedding dimension
+        embedding_dim = model.config.hidden_size
 
-        # Try FP16 only on CUDA
         if device == 'cuda':
             try:
                 model.half()
                 logging.info("Applied .half() to model for potential FP16 speedup.")
             except Exception as fp16_err:
                 logging.warning(f"Could not apply .half(): {fp16_err}. Using FP32.")
-        model.eval() # Set model to evaluation mode
+        model.eval()
     except Exception as e:
         logging.error(f"Failed to load model/tokenizer: {e}", exc_info=True)
         exit(1)
@@ -361,7 +356,6 @@ if __name__ == "__main__":
     conn = connect_db()
     create_table_if_not_exists(conn, embedding_dim)
 
-    # S3 Client Setup (now uses the updated function with before-sign hook)
     s3_client = get_s3_client()
 
     logging.info("Phase 1: Listing S3 files and pre-computing total chunks for ETA...")
@@ -370,7 +364,7 @@ if __name__ == "__main__":
         all_s3_keys = list_s3_files(s3_client, S3_BUCKET, S3_PREFIX)
     except Exception as e:
         logging.error(f"Failed during S3 listing or client creation: {e}", exc_info=True)
-        if conn: conn.close() # Ensure DB connection is closed on early exit
+        if conn: conn.close()
         exit(1)
 
     if not all_s3_keys:
@@ -378,7 +372,6 @@ if __name__ == "__main__":
         if conn: conn.close()
         exit(1)
 
-    # Group files by partition for potentially better progress tracking / organization
     partition_groups = defaultdict(list)
     for key in all_s3_keys:
         partition_name = "root_or_unknown"
@@ -395,7 +388,6 @@ if __name__ == "__main__":
     total_chunks_overall = 0
     partition_chunk_estimates = {}
 
-    # Precompute counts per partition first
     for partition_name, partition_files in partition_groups.items():
         logging.info(f"\nPre-computing for partition: {partition_name} ({len(partition_files)} files)")
         partition_items_estimate = 0
@@ -417,7 +409,6 @@ if __name__ == "__main__":
                     partition_items_estimate += item_count
                     partition_chunks_estimate += chunk_count
                 except Exception as exc:
-                    # Log the specific file key along with the exception
                     logging.error(f"Pre-computation task for file '{key}' generated an exception: {exc}", exc_info=True)
 
         logging.info(f"Pre-computation finished for partition={partition_name}.")
@@ -441,10 +432,9 @@ if __name__ == "__main__":
     process_start_time = time.time()
     chunks_processed_count = 0
     db_batch = []
-    model_input_batch = [] # Stores tuples: (url, chunk_id, chunk_text)
+    model_input_batch = []
     last_eta_print_time = time.time()
 
-    # Process each partition sequentially for embedding
     for partition_name, partition_files in partition_groups.items():
         partition_total_chunks = partition_chunk_estimates.get(partition_name, 0)
         if partition_total_chunks == 0:
@@ -455,27 +445,20 @@ if __name__ == "__main__":
         partition_chunks_processed = 0
         pbar = tqdm(total=partition_total_chunks, desc=f"Embedding ({partition_name})", unit="chunk")
 
-        # Use ThreadPoolExecutor for reading/chunking S3 files in parallel
         with ThreadPoolExecutor(max_workers=MAX_CPU_WORKERS, thread_name_prefix=f'Process_{partition_name[:10]}') as executor:
-            # Submit tasks to yield chunks from each file
             chunk_futures = {
                 executor.submit(process_s3_object_yield_chunks, s3_client, S3_BUCKET, key, tokenizer, MAX_SEQ_LENGTH, CHUNK_OVERLAP): key
                 for key in partition_files
             }
 
-            # Process results as they become available
             for future in as_completed(chunk_futures):
                 key = chunk_futures[future]
                 try:
-                    # Iterate through chunks yielded by the worker
                     for url, chunk_id, chunk_text in future.result():
                         model_input_batch.append((url, chunk_id, chunk_text))
 
-                        # --- Batch Encoding ---
                         if len(model_input_batch) >= CHUNK_BATCH_SIZE:
-                            # Take a full batch
                             batch_to_encode_data = model_input_batch[:CHUNK_BATCH_SIZE]
-                            # Keep the remainder
                             model_input_batch = model_input_batch[CHUNK_BATCH_SIZE:]
 
                             batch_texts = [item[2] for item in batch_to_encode_data]
@@ -484,28 +467,21 @@ if __name__ == "__main__":
                                 embeddings = encode_batch_hf_automodel(
                                     model, tokenizer, batch_texts, device, MAX_SEQ_LENGTH
                                 )
-                                # No need to sync explicitly here unless debugging timing issues
 
-                                # Prepare for DB batch insert
                                 for i, (url_b, chunk_id_b, _) in enumerate(batch_to_encode_data):
-                                    # Ensure embedding is a list or tuple for psycopg2
                                     db_batch.append((url_b, chunk_id_b, embeddings[i].tolist()))
 
-                                # Update progress
                                 batch_size = len(batch_to_encode_data)
                                 chunks_processed_count += batch_size
                                 partition_chunks_processed += batch_size
                                 pbar.update(batch_size)
 
-                                # --- ETA Calculation ---
                                 current_time = time.time()
                                 if current_time - last_eta_print_time > ETA_UPDATE_INTERVAL_SEC:
                                     elapsed_proc_time = current_time - process_start_time
                                     if chunks_processed_count > 0 and elapsed_proc_time > 1:
-                                        # Use overall progress for ETA calculation
                                         chunks_per_sec = chunks_processed_count / elapsed_proc_time
                                         chunks_remaining = total_chunks_overall - chunks_processed_count
-                                        # Prevent division by zero or negative remaining chunks
                                         if chunks_per_sec > 0 and chunks_remaining > 0:
                                             eta_seconds = chunks_remaining / chunks_per_sec
                                             eta_formatted = time.strftime('%H:%M:%S', time.gmtime(eta_seconds))
@@ -517,11 +493,8 @@ if __name__ == "__main__":
 
                             except Exception as model_err:
                                 logging.error(f"Error during model encoding batch: {model_err}", exc_info=True)
-                                # Still update pbar to avoid getting stuck if errors occur
-                                pbar.update(len(batch_to_encode_data)) # Use actual batch size attempted
+                                pbar.update(len(batch_to_encode_data))
 
-
-                        # --- Batch DB Insert ---
                         if len(db_batch) >= DB_BATCH_SIZE:
                             try:
                                 with conn.cursor() as cur:
@@ -533,40 +506,32 @@ if __name__ == "__main__":
                                         ON CONFLICT (url, chunk_id) DO UPDATE SET embedding = EXCLUDED.embedding;
                                         """,
                                         db_batch,
-                                        template="(%s, %s, %s::vector)", # Cast embedding explicitly
-                                        page_size=DB_BATCH_SIZE # Optional: control internal batching
+                                        template="(%s, %s, %s::vector)",
+                                        page_size=DB_BATCH_SIZE
                                     )
                                 conn.commit()
-                                # logging.debug(f"Inserted batch of {len(db_batch)} embeddings.")
-                                db_batch = [] # Clear the batch
+                                db_batch = []
                             except psycopg2.Error as db_err:
                                 logging.error(f"Database batch insert failed: {db_err}")
-                                conn.rollback() # Rollback the failed transaction
-                                # Consider adding a retry mechanism or exiting if DB errors persist
-                                db_batch = [] # Clear the batch even on error to avoid re-inserting bad data
+                                conn.rollback()
+                                db_batch = []
                             except Exception as general_db_err:
                                  logging.error(f"Unexpected error during DB insert: {general_db_err}", exc_info=True)
                                  conn.rollback()
                                  db_batch = []
 
-
                 except GeneratorExit:
-                     # This can happen if the main thread exits while the generator is running
                      logging.warning(f"GeneratorExit caught for file {key}. Main thread likely shutting down.")
-                     break # Exit the loop for this future
+                     break
                 except Exception as future_exc:
                     logging.error(f"Chunk processing task for file '{key}' generated an exception: {future_exc}", exc_info=True)
 
-        pbar.close() # Close progress bar for the partition
-        # Make sure final partition progress is accurate if loop finishes early
+        pbar.close()
         pbar.refresh()
         logging.info(f"Finished processing partition {partition_name}. Processed {partition_chunks_processed} chunks.")
 
-
-    # --- Final Processing ---
     logging.info("Processing any remaining chunks in the final batches...")
 
-    # Process remaining items in model_input_batch
     if model_input_batch:
         try:
             logging.info(f"Encoding final model batch of {len(model_input_batch)} chunks...")
@@ -583,7 +548,6 @@ if __name__ == "__main__":
         except Exception as model_err:
             logging.error(f"Error during final model encoding batch: {model_err}", exc_info=True)
 
-    # Insert any remaining items in db_batch
     if db_batch:
         try:
             logging.info(f"Inserting final batch of {len(db_batch)} embeddings into DB...")
@@ -596,8 +560,8 @@ if __name__ == "__main__":
                     ON CONFLICT (url, chunk_id) DO UPDATE SET embedding = EXCLUDED.embedding;
                     """,
                     db_batch,
-                    template="(%s, %s, %s::vector)", # Cast embedding explicitly
-                    page_size=len(db_batch) # Process the whole remaining batch
+                    template="(%s, %s, %s::vector)",
+                    page_size=len(db_batch)
                 )
             conn.commit()
             logging.info("Final DB batch inserted successfully.")
@@ -608,15 +572,12 @@ if __name__ == "__main__":
             logging.error(f"Unexpected error during final DB insert: {general_db_err}", exc_info=True)
             conn.rollback()
 
-
-    # --- Cleanup and Summary ---
     if conn:
         conn.close()
         logging.info("Database connection closed.")
 
     overall_end_time = time.time()
     total_runtime = overall_end_time - overall_start_time
-    # Ensure process_start_time was set
     processing_runtime = overall_end_time - process_start_time if 'process_start_time' in locals() else 0
 
     logging.info("\n--- Embedding Generation Complete ---")
