@@ -27,12 +27,12 @@ CHUNK_BATCH_SIZE = 2048  # How many CHUNKS to feed to the GPU at once
 DB_BATCH_SIZE = 4096     # How many embeddings to insert into DB at once
 MAX_SEQ_LENGTH = 256     # Effective max length for all-MiniLM-L6-v2
 CHUNK_OVERLAP = 50
-MAX_CPU_WORKERS = (os.cpu_count() or 4) // 2  # Reduced for stability
+MAX_CPU_WORKERS = min((os.cpu_count() or 4) // 2, 4)  # Cap at 4 workers max
 ETA_UPDATE_INTERVAL_SEC = 10 # how often to print ETA
 
 # --- Retry Configuration ---
-MAX_RETRIES = 3
-RETRY_DELAY_SECONDS = 5
+MAX_RETRIES = 5  # Increased from 3
+RETRY_DELAY_SECONDS = 10  # Increased base delay
 
 # --- Logging Setup ---
 logging.basicConfig(
@@ -131,15 +131,16 @@ def remove_unsupported_headers(request, **kwargs):
         del request.headers['x-amz-checksum-crc32']
 
 def get_s3_client():
-    """Initializes and returns a boto3 S3 client with header modification and timeouts."""
+    """Initializes and returns a boto3 S3 client with optimized settings."""
     try:
         session = boto3.Session()
         session.events.register('before-send.*', remove_unsupported_headers)
 
         s3_config = Config(
-            connect_timeout=10,
-            read_timeout=300,   # 5 minutes for large files
-            retries={'max_attempts': 0}  # We handle retries ourselves
+            connect_timeout=15,
+            read_timeout=300,
+            retries={'max_attempts': 0},  # We handle retries ourselves
+            max_pool_connections=MAX_CPU_WORKERS + 5  # Ensure pool exceeds worker count
         )
 
         s3_client = session.client(
@@ -151,7 +152,9 @@ def get_s3_client():
             config=s3_config
         )
         s3_client.list_buckets()
-        logging.info(f"Successfully connected to S3 endpoint: {S3_ENDPOINT_URL}")
+        logging.info(f"Successfully connected to S3 endpoint: {S3_ENDPOINT_URL} "
+                     f"with read_timeout={s3_config.read_timeout}, "
+                     f"max_pool_connections={s3_config.max_pool_connections}")
         return s3_client
     except ClientError as e:
         logging.error(f"Failed to connect to S3: {e}")
@@ -217,12 +220,13 @@ def list_s3_files(s3_client, bucket, prefix):
     return jsonl_files
 
 def precompute_chunk_counts_s3(s3_client, bucket, s3_key, tokenizer, max_tokens, overlap):
-    """Worker function with retries to read an S3 object and count items and chunks."""
+    """Worker function with retries and proper resource cleanup."""
     item_count = 0
     chunk_count = 0
     last_exception = None
 
     for attempt in range(MAX_RETRIES):
+        body = None
         try:
             response = s3_client.get_object(Bucket=bucket, Key=s3_key)
             body = response['Body']
@@ -245,8 +249,7 @@ def precompute_chunk_counts_s3(s3_client, bucket, s3_key, tokenizer, max_tokens,
                     logging.warning(f"Error processing line in {s3_key}: {inner_e}")
                     continue
             
-            body.close()
-            return item_count, chunk_count
+            return item_count, chunk_count  # Success path
 
         except (ClientError, ReadTimeoutError, ConnectionClosedError, Urllib3IncompleteRead) as e:
             last_exception = e
@@ -254,18 +257,28 @@ def precompute_chunk_counts_s3(s3_client, bucket, s3_key, tokenizer, max_tokens,
                 delay = RETRY_DELAY_SECONDS * (attempt + 1)
                 logging.warning(f"Attempt {attempt + 1}/{MAX_RETRIES} failed for {s3_key}: {e}. Retrying in {delay}s...")
                 time.sleep(delay)
-            else:
-                logging.error(f"Precompute failed for {s3_key} after {MAX_RETRIES} attempts: {e}")
-                return 0, 0
+        except Exception as e:
+            logging.error(f"Unexpected error during precompute for {s3_key}: {e}", exc_info=True)
+            last_exception = e
+            if attempt < MAX_RETRIES - 1:
+                time.sleep(RETRY_DELAY_SECONDS * (attempt + 1))
+        finally:
+            if body:
+                try:
+                    body.close()
+                except Exception as close_err:
+                    logging.warning(f"Error closing response body for {s3_key}: {close_err}")
 
+    logging.error(f"Precompute failed for {s3_key} after {MAX_RETRIES} attempts: {last_exception}")
     return 0, 0
 
 def process_s3_object_yield_chunks(s3_client, bucket, s3_key, tokenizer, max_tokens, overlap):
-    """Worker function with retries to process S3 object and yield chunks."""
+    """Worker function with retries, proper resource cleanup, and safe yielding."""
     chunk_counts = defaultdict(int)
     last_exception = None
 
     for attempt in range(MAX_RETRIES):
+        body = None
         try:
             response = s3_client.get_object(Bucket=bucket, Key=s3_key)
             body = response['Body']
@@ -296,10 +309,10 @@ def process_s3_object_yield_chunks(s3_client, bucket, s3_key, tokenizer, max_tok
                     logging.warning(f"Error processing line in {s3_key}: {e}")
                     continue
 
-            body.close()
+            # Only yield after successful complete read
             for result in results:
                 yield result
-            return
+            return  # Success path
 
         except (ClientError, ReadTimeoutError, ConnectionClosedError, Urllib3IncompleteRead) as e:
             last_exception = e
@@ -307,9 +320,19 @@ def process_s3_object_yield_chunks(s3_client, bucket, s3_key, tokenizer, max_tok
                 delay = RETRY_DELAY_SECONDS * (attempt + 1)
                 logging.warning(f"Attempt {attempt + 1}/{MAX_RETRIES} failed for {s3_key}: {e}. Retrying in {delay}s...")
                 time.sleep(delay)
-            else:
-                logging.error(f"Processing failed for {s3_key} after {MAX_RETRIES} attempts: {e}")
-                return
+        except Exception as e:
+            logging.error(f"Unexpected error processing {s3_key}: {e}", exc_info=True)
+            last_exception = e
+            if attempt < MAX_RETRIES - 1:
+                time.sleep(RETRY_DELAY_SECONDS * (attempt + 1))
+        finally:
+            if body:
+                try:
+                    body.close()
+                except Exception as close_err:
+                    logging.warning(f"Error closing response body for {s3_key}: {close_err}")
+
+    logging.error(f"Processing failed for {s3_key} after {MAX_RETRIES} attempts: {last_exception}")
 
 def encode_batch_hf_automodel(model, tokenizer, chunk_batch, device, max_seq_len):
     """Encode batch using standard Hugging Face AutoModel."""
@@ -354,227 +377,226 @@ if __name__ == "__main__":
         exit(1)
 
     conn = connect_db()
-    create_table_if_not_exists(conn, embedding_dim)
-
-    s3_client = get_s3_client()
-
-    logging.info("Phase 1: Listing S3 files and pre-computing total chunks for ETA...")
-    precompute_start_time = time.time()
     try:
-        all_s3_keys = list_s3_files(s3_client, S3_BUCKET, S3_PREFIX)
-    except Exception as e:
-        logging.error(f"Failed during S3 listing or client creation: {e}", exc_info=True)
-        if conn: conn.close()
-        exit(1)
+        create_table_if_not_exists(conn, embedding_dim)
 
-    if not all_s3_keys:
-        logging.error(f"No .jsonl files found in s3://{S3_BUCKET}/{S3_PREFIX}. Exiting.")
-        if conn: conn.close()
-        exit(1)
+        s3_client = get_s3_client()
 
-    partition_groups = defaultdict(list)
-    for key in all_s3_keys:
-        partition_name = "root_or_unknown"
-        parts = key.split('/')
-        for part in reversed(parts):
-            if '=' in part:
-                partition_name = part
-                break
-        partition_groups[partition_name].append(key)
+        logging.info("Phase 1: Listing S3 files and pre-computing total chunks for ETA...")
+        precompute_start_time = time.time()
+        try:
+            all_s3_keys = list_s3_files(s3_client, S3_BUCKET, S3_PREFIX)
+        except Exception as e:
+            logging.error(f"Failed during S3 listing or client creation: {e}", exc_info=True)
+            exit(1)
 
-    logging.info(f"Starting pre-computation across {len(partition_groups)} detected partitions/groups...")
+        if not all_s3_keys:
+            logging.error(f"No .jsonl files found in s3://{S3_BUCKET}/{S3_PREFIX}. Exiting.")
+            exit(1)
 
-    total_items_overall = 0
-    total_chunks_overall = 0
-    partition_chunk_estimates = {}
+        partition_groups = defaultdict(list)
+        for key in all_s3_keys:
+            partition_name = "root_or_unknown"
+            parts = key.split('/')
+            for part in reversed(parts):
+                if '=' in part:
+                    partition_name = part
+                    break
+            partition_groups[partition_name].append(key)
 
-    for partition_name, partition_files in partition_groups.items():
-        logging.info(f"\nPre-computing for partition: {partition_name} ({len(partition_files)} files)")
-        partition_items_estimate = 0
-        partition_chunks_estimate = 0
+        logging.info(f"Starting pre-computation across {len(partition_groups)} detected partitions/groups...")
 
-        with ThreadPoolExecutor(max_workers=MAX_CPU_WORKERS, thread_name_prefix=f'Precomp_{partition_name[:10]}') as executor:
-            futures = {
-                executor.submit(precompute_chunk_counts_s3, s3_client, S3_BUCKET, key,
-                              tokenizer, MAX_SEQ_LENGTH, CHUNK_OVERLAP): key
-                for key in partition_files
-            }
-            for future in tqdm(as_completed(futures),
-                             total=len(partition_files),
-                             desc=f"Pre-computing Chunks ({partition_name})",
-                             unit="file"):
-                key = futures[future]
-                try:
-                    item_count, chunk_count = future.result()
-                    partition_items_estimate += item_count
-                    partition_chunks_estimate += chunk_count
-                except Exception as exc:
-                    logging.error(f"Pre-computation task for file '{key}' generated an exception: {exc}", exc_info=True)
+        total_items_overall = 0
+        total_chunks_overall = 0
+        partition_chunk_estimates = {}
 
-        logging.info(f"Pre-computation finished for partition={partition_name}.")
-        logging.info(f"  Estimated Items: {partition_items_estimate}")
-        logging.info(f"  Estimated Chunks: {partition_chunks_estimate}")
-        partition_chunk_estimates[partition_name] = partition_chunks_estimate
-        total_items_overall += partition_items_estimate
-        total_chunks_overall += partition_chunks_estimate
+        for partition_name, partition_files in partition_groups.items():
+            logging.info(f"\nPre-computing for partition: {partition_name} ({len(partition_files)} files)")
+            partition_items_estimate = 0
+            partition_chunks_estimate = 0
 
-    precompute_time = time.time() - precompute_start_time
-    logging.info(f"\nTotal Estimated Items across all partitions: {total_items_overall}")
-    logging.info(f"Total Estimated Chunks across all partitions: {total_chunks_overall}")
-    logging.info(f"Pre-computation phase took: {precompute_time:.2f} seconds.")
+            with ThreadPoolExecutor(max_workers=MAX_CPU_WORKERS, thread_name_prefix=f'Precomp_{partition_name[:10]}') as executor:
+                futures = {
+                    executor.submit(precompute_chunk_counts_s3, s3_client, S3_BUCKET, key,
+                                  tokenizer, MAX_SEQ_LENGTH, CHUNK_OVERLAP): key
+                    for key in partition_files
+                }
+                for future in tqdm(as_completed(futures),
+                                 total=len(partition_files),
+                                 desc=f"Pre-computing Chunks ({partition_name})",
+                                 unit="file"):
+                    key = futures[future]
+                    try:
+                        item_count, chunk_count = future.result()
+                        partition_items_estimate += item_count
+                        partition_chunks_estimate += chunk_count
+                    except Exception as exc:
+                        logging.error(f"Pre-computation task for file '{key}' generated an exception: {exc}", exc_info=True)
 
-    if total_chunks_overall == 0:
-        logging.error("No processable chunks found in any partition. Exiting.")
-        if conn: conn.close()
-        exit(1)
+            logging.info(f"Pre-computation finished for partition={partition_name}.")
+            logging.info(f"  Estimated Items: {partition_items_estimate}")
+            logging.info(f"  Estimated Chunks: {partition_chunks_estimate}")
+            partition_chunk_estimates[partition_name] = partition_chunks_estimate
+            total_items_overall += partition_items_estimate
+            total_chunks_overall += partition_chunks_estimate
 
-    logging.info("\nPhase 2: Starting main processing (Embedding and DB Insert)...")
-    process_start_time = time.time()
-    chunks_processed_count = 0
-    db_batch = []
-    model_input_batch = []
-    last_eta_print_time = time.time()
+        precompute_time = time.time() - precompute_start_time
+        logging.info(f"\nTotal Estimated Items across all partitions: {total_items_overall}")
+        logging.info(f"Total Estimated Chunks across all partitions: {total_chunks_overall}")
+        logging.info(f"Pre-computation phase took: {precompute_time:.2f} seconds.")
 
-    for partition_name, partition_files in partition_groups.items():
-        partition_total_chunks = partition_chunk_estimates.get(partition_name, 0)
-        if partition_total_chunks == 0:
-            logging.info(f"\nSkipping partition {partition_name} as it has 0 estimated chunks.")
-            continue
+        if total_chunks_overall == 0:
+            logging.error("No processable chunks found in any partition. Exiting.")
+            exit(1)
 
-        logging.info(f"\nProcessing partition: {partition_name} (Est. Chunks: {partition_total_chunks})")
-        partition_chunks_processed = 0
-        pbar = tqdm(total=partition_total_chunks, desc=f"Embedding ({partition_name})", unit="chunk")
+        logging.info("\nPhase 2: Starting main processing (Embedding and DB Insert)...")
+        process_start_time = time.time()
+        chunks_processed_count = 0
+        db_batch = []
+        model_input_batch = []
+        last_eta_print_time = time.time()
 
-        with ThreadPoolExecutor(max_workers=MAX_CPU_WORKERS, thread_name_prefix=f'Process_{partition_name[:10]}') as executor:
-            chunk_futures = {
-                executor.submit(process_s3_object_yield_chunks, s3_client, S3_BUCKET, key, tokenizer, MAX_SEQ_LENGTH, CHUNK_OVERLAP): key
-                for key in partition_files
-            }
+        for partition_name, partition_files in partition_groups.items():
+            partition_total_chunks = partition_chunk_estimates.get(partition_name, 0)
+            if partition_total_chunks == 0:
+                logging.info(f"\nSkipping partition {partition_name} as it has 0 estimated chunks.")
+                continue
 
-            for future in as_completed(chunk_futures):
-                key = chunk_futures[future]
-                try:
-                    for url, chunk_id, chunk_text in future.result():
-                        model_input_batch.append((url, chunk_id, chunk_text))
+            logging.info(f"\nProcessing partition: {partition_name} (Est. Chunks: {partition_total_chunks})")
+            partition_chunks_processed = 0
+            pbar = tqdm(total=partition_total_chunks, desc=f"Embedding ({partition_name})", unit="chunk")
 
-                        if len(model_input_batch) >= CHUNK_BATCH_SIZE:
-                            batch_to_encode_data = model_input_batch[:CHUNK_BATCH_SIZE]
-                            model_input_batch = model_input_batch[CHUNK_BATCH_SIZE:]
+            with ThreadPoolExecutor(max_workers=MAX_CPU_WORKERS, thread_name_prefix=f'Process_{partition_name[:10]}') as executor:
+                chunk_futures = {
+                    executor.submit(process_s3_object_yield_chunks, s3_client, S3_BUCKET, key, tokenizer, MAX_SEQ_LENGTH, CHUNK_OVERLAP): key
+                    for key in partition_files
+                }
 
-                            batch_texts = [item[2] for item in batch_to_encode_data]
+                for future in as_completed(chunk_futures):
+                    key = chunk_futures[future]
+                    try:
+                        for url, chunk_id, chunk_text in future.result():
+                            model_input_batch.append((url, chunk_id, chunk_text))
 
-                            try:
-                                embeddings = encode_batch_hf_automodel(
-                                    model, tokenizer, batch_texts, device, MAX_SEQ_LENGTH
-                                )
+                            if len(model_input_batch) >= CHUNK_BATCH_SIZE:
+                                batch_to_encode_data = model_input_batch[:CHUNK_BATCH_SIZE]
+                                model_input_batch = model_input_batch[CHUNK_BATCH_SIZE:]
 
-                                for i, (url_b, chunk_id_b, _) in enumerate(batch_to_encode_data):
-                                    db_batch.append((url_b, chunk_id_b, embeddings[i].tolist()))
+                                batch_texts = [item[2] for item in batch_to_encode_data]
 
-                                batch_size = len(batch_to_encode_data)
-                                chunks_processed_count += batch_size
-                                partition_chunks_processed += batch_size
-                                pbar.update(batch_size)
-
-                                current_time = time.time()
-                                if current_time - last_eta_print_time > ETA_UPDATE_INTERVAL_SEC:
-                                    elapsed_proc_time = current_time - process_start_time
-                                    if chunks_processed_count > 0 and elapsed_proc_time > 1:
-                                        chunks_per_sec = chunks_processed_count / elapsed_proc_time
-                                        chunks_remaining = total_chunks_overall - chunks_processed_count
-                                        if chunks_per_sec > 0 and chunks_remaining > 0:
-                                            eta_seconds = chunks_remaining / chunks_per_sec
-                                            eta_formatted = time.strftime('%H:%M:%S', time.gmtime(eta_seconds))
-                                        else:
-                                             eta_formatted = "N/A" if chunks_per_sec <=0 else "Done"
-
-                                        pbar.set_postfix_str(f"Overall Rate: {chunks_per_sec:.1f} c/s, ETA: {eta_formatted}, DB Batch: {len(db_batch)}")
-                                        last_eta_print_time = current_time
-
-                            except Exception as model_err:
-                                logging.error(f"Error during model encoding batch: {model_err}", exc_info=True)
-                                pbar.update(len(batch_to_encode_data))
-
-                        if len(db_batch) >= DB_BATCH_SIZE:
-                            try:
-                                with conn.cursor() as cur:
-                                    psycopg2.extras.execute_values(
-                                        cur,
-                                        f"""
-                                        INSERT INTO {DB_TABLE_NAME} (url, chunk_id, embedding)
-                                        VALUES %s
-                                        ON CONFLICT (url, chunk_id) DO UPDATE SET embedding = EXCLUDED.embedding;
-                                        """,
-                                        db_batch,
-                                        template="(%s, %s, %s::vector)",
-                                        page_size=DB_BATCH_SIZE
+                                try:
+                                    embeddings = encode_batch_hf_automodel(
+                                        model, tokenizer, batch_texts, device, MAX_SEQ_LENGTH
                                     )
-                                conn.commit()
-                                db_batch = []
-                            except psycopg2.Error as db_err:
-                                logging.error(f"Database batch insert failed: {db_err}")
-                                conn.rollback()
-                                db_batch = []
-                            except Exception as general_db_err:
-                                 logging.error(f"Unexpected error during DB insert: {general_db_err}", exc_info=True)
-                                 conn.rollback()
-                                 db_batch = []
 
-                except GeneratorExit:
-                     logging.warning(f"GeneratorExit caught for file {key}. Main thread likely shutting down.")
-                     break
-                except Exception as future_exc:
-                    logging.error(f"Chunk processing task for file '{key}' generated an exception: {future_exc}", exc_info=True)
+                                    for i, (url_b, chunk_id_b, _) in enumerate(batch_to_encode_data):
+                                        db_batch.append((url_b, chunk_id_b, embeddings[i].tolist()))
 
-        pbar.close()
-        pbar.refresh()
-        logging.info(f"Finished processing partition {partition_name}. Processed {partition_chunks_processed} chunks.")
+                                    batch_size = len(batch_to_encode_data)
+                                    chunks_processed_count += batch_size
+                                    partition_chunks_processed += batch_size
+                                    pbar.update(batch_size)
 
-    logging.info("Processing any remaining chunks in the final batches...")
+                                    current_time = time.time()
+                                    if current_time - last_eta_print_time > ETA_UPDATE_INTERVAL_SEC:
+                                        elapsed_proc_time = current_time - process_start_time
+                                        if chunks_processed_count > 0 and elapsed_proc_time > 1:
+                                            chunks_per_sec = chunks_processed_count / elapsed_proc_time
+                                            chunks_remaining = total_chunks_overall - chunks_processed_count
+                                            if chunks_per_sec > 0 and chunks_remaining > 0:
+                                                eta_seconds = chunks_remaining / chunks_per_sec
+                                                eta_formatted = time.strftime('%H:%M:%S', time.gmtime(eta_seconds))
+                                            else:
+                                                 eta_formatted = "N/A" if chunks_per_sec <=0 else "Done"
 
-    if model_input_batch:
-        try:
-            logging.info(f"Encoding final model batch of {len(model_input_batch)} chunks...")
-            batch_texts = [item[2] for item in model_input_batch]
-            embeddings = encode_batch_hf_automodel(
-                model, tokenizer, batch_texts, device, MAX_SEQ_LENGTH
-            )
+                                            pbar.set_postfix_str(f"Overall Rate: {chunks_per_sec:.1f} c/s, ETA: {eta_formatted}, DB Batch: {len(db_batch)}")
+                                            last_eta_print_time = current_time
 
-            for i, (url_b, chunk_id_b, _) in enumerate(model_input_batch):
-                 db_batch.append((url_b, chunk_id_b, embeddings[i].tolist()))
+                                except Exception as model_err:
+                                    logging.error(f"Error during model encoding batch: {model_err}", exc_info=True)
+                                    pbar.update(len(batch_to_encode_data))
 
-            chunks_processed_count += len(model_input_batch)
-            logging.info(f"Encoded final model batch. Total chunks processed: {chunks_processed_count}")
-        except Exception as model_err:
-            logging.error(f"Error during final model encoding batch: {model_err}", exc_info=True)
+                            if len(db_batch) >= DB_BATCH_SIZE:
+                                try:
+                                    with conn.cursor() as cur:
+                                        psycopg2.extras.execute_values(
+                                            cur,
+                                            f"""
+                                            INSERT INTO {DB_TABLE_NAME} (url, chunk_id, embedding)
+                                            VALUES %s
+                                            ON CONFLICT (url, chunk_id) DO UPDATE SET embedding = EXCLUDED.embedding;
+                                            """,
+                                            db_batch,
+                                            template="(%s, %s, %s::vector)",
+                                            page_size=DB_BATCH_SIZE
+                                        )
+                                    conn.commit()
+                                    db_batch = []
+                                except psycopg2.Error as db_err:
+                                    logging.error(f"Database batch insert failed: {db_err}")
+                                    conn.rollback()
+                                    db_batch = []
+                                except Exception as general_db_err:
+                                     logging.error(f"Unexpected error during DB insert: {general_db_err}", exc_info=True)
+                                     conn.rollback()
+                                     db_batch = []
 
-    if db_batch:
-        try:
-            logging.info(f"Inserting final batch of {len(db_batch)} embeddings into DB...")
-            with conn.cursor() as cur:
-                psycopg2.extras.execute_values(
-                    cur,
-                    f"""
-                    INSERT INTO {DB_TABLE_NAME} (url, chunk_id, embedding)
-                    VALUES %s
-                    ON CONFLICT (url, chunk_id) DO UPDATE SET embedding = EXCLUDED.embedding;
-                    """,
-                    db_batch,
-                    template="(%s, %s, %s::vector)",
-                    page_size=len(db_batch)
+                    except GeneratorExit:
+                         logging.warning(f"GeneratorExit caught for file {key}. Main thread likely shutting down.")
+                         break
+                    except Exception as future_exc:
+                        logging.error(f"Chunk processing task for file '{key}' generated an exception: {future_exc}", exc_info=True)
+
+            pbar.close()
+            pbar.refresh()
+            logging.info(f"Finished processing partition {partition_name}. Processed {partition_chunks_processed} chunks.")
+
+        logging.info("Processing any remaining chunks in the final batches...")
+
+        if model_input_batch:
+            try:
+                logging.info(f"Encoding final model batch of {len(model_input_batch)} chunks...")
+                batch_texts = [item[2] for item in model_input_batch]
+                embeddings = encode_batch_hf_automodel(
+                    model, tokenizer, batch_texts, device, MAX_SEQ_LENGTH
                 )
-            conn.commit()
-            logging.info("Final DB batch inserted successfully.")
-        except psycopg2.Error as db_err:
-            logging.error(f"Final database batch insert failed: {db_err}")
-            conn.rollback()
-        except Exception as general_db_err:
-            logging.error(f"Unexpected error during final DB insert: {general_db_err}", exc_info=True)
-            conn.rollback()
 
-    if conn:
-        conn.close()
-        logging.info("Database connection closed.")
+                for i, (url_b, chunk_id_b, _) in enumerate(model_input_batch):
+                     db_batch.append((url_b, chunk_id_b, embeddings[i].tolist()))
+
+                chunks_processed_count += len(model_input_batch)
+                logging.info(f"Encoded final model batch. Total chunks processed: {chunks_processed_count}")
+            except Exception as model_err:
+                logging.error(f"Error during final model encoding batch: {model_err}", exc_info=True)
+
+        if db_batch:
+            try:
+                logging.info(f"Inserting final batch of {len(db_batch)} embeddings into DB...")
+                with conn.cursor() as cur:
+                    psycopg2.extras.execute_values(
+                        cur,
+                        f"""
+                        INSERT INTO {DB_TABLE_NAME} (url, chunk_id, embedding)
+                        VALUES %s
+                        ON CONFLICT (url, chunk_id) DO UPDATE SET embedding = EXCLUDED.embedding;
+                        """,
+                        db_batch,
+                        template="(%s, %s, %s::vector)",
+                        page_size=len(db_batch)
+                    )
+                conn.commit()
+                logging.info("Final DB batch inserted successfully.")
+            except psycopg2.Error as db_err:
+                logging.error(f"Final database batch insert failed: {db_err}")
+                conn.rollback()
+            except Exception as general_db_err:
+                logging.error(f"Unexpected error during final DB insert: {general_db_err}", exc_info=True)
+                conn.rollback()
+
+    finally:
+        if conn:
+            conn.close()
+            logging.info("Database connection closed.")
 
     overall_end_time = time.time()
     total_runtime = overall_end_time - overall_start_time
