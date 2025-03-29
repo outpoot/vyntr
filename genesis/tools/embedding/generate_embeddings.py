@@ -34,18 +34,20 @@ except Exception as e:
 
 # --- Configuration ---
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
-ANALYSES_DIR_PATTERN = "../analyses/partition=*/*.jsonl"  # Filesystem pattern
+ANALYSES_DIR_PATTERN = "../analyses/partition=*/*.jsonl"
 DB_TABLE_NAME = "document_chunk_embeddings"
-CHUNK_BATCH_SIZE = 1024
+CHUNK_BATCH_SIZE = 512  # Reduced for initial stability
 DB_BATCH_SIZE = 5000
 MAX_SEQ_LENGTH = 512
 CHUNK_OVERLAP = 50
 MAX_CPU_WORKERS = os.cpu_count()
 ETA_UPDATE_INTERVAL_SEC = 10
+MAX_INPUT_TOKENS = 1_000_000  # Safety limit for initial tokenization
 
 # --- Logging Setup ---
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.DEBUG,  # Temporary DEBUG level for diagnostics
+    format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
 # --- Database Configuration ---
@@ -127,29 +129,46 @@ def estimate_chunks_in_file_fast(filepath, approx_chars_per_chunk):
 
 def chunk_text_by_tokens(text, tokenizer, max_tokens, overlap):
     """
-    Chunks text based on token count with safety buffer to prevent overflow.
+    Enhanced chunking with robust error handling and logging.
     """
     if not text:
         return []
 
-    SAFETY_BUFFER = 5  # Reduce target length for safety
+    logging.debug(f"chunk_text_by_tokens received text of length {len(text)} chars")
+
+    SAFETY_BUFFER = 15  # Increased buffer for safety
     num_special_tokens = tokenizer.num_special_tokens_to_add(pair=False)
     effective_max_tokens = max(1, max_tokens - num_special_tokens - SAFETY_BUFFER)
 
     if effective_max_tokens <= overlap:
         overlap = max(0, effective_max_tokens // 4)
-        logging.debug(f"Overlap reduced to {overlap} due to effective_max_tokens limit.")
+        logging.debug(f"Overlap reduced to {overlap} due to effective_max_tokens limit")
 
     if (max_tokens - num_special_tokens) <= 0:
-        logging.warning(
-            f"max_tokens ({max_tokens}) too small for special tokens ({num_special_tokens})."
-        )
+        logging.warning(f"max_tokens ({max_tokens}) too small. Skipping text.")
         return []
 
-    tokens = tokenizer.encode(text, add_special_tokens=False, truncation=False)
+    try:
+        # Add safety limit to prevent OOM during tokenization
+        tokens = tokenizer.encode(
+            text, 
+            add_special_tokens=False, 
+            max_length=MAX_INPUT_TOKENS,
+            truncation=True
+        )
+        logging.debug(f"Input text tokenized into {len(tokens)} tokens")
+    except Exception as e:
+        logging.error(f"Failed to tokenize input text (length {len(text)}): {e}")
+        return []
 
     if len(tokens) <= effective_max_tokens:
-        return [tokenizer.decode(tokens)]
+        try:
+            decoded_chunk = tokenizer.decode(tokens)
+            logging.debug(f"Input fits in one chunk ({len(tokens)} tokens)")
+            return [decoded_chunk]
+        except Exception as decode_err:
+            logging.warning(f"Failed to decode single chunk ({len(tokens)} tokens): {decode_err}")
+            return []
 
     chunks = []
     stride = effective_max_tokens - overlap
@@ -158,15 +177,30 @@ def chunk_text_by_tokens(text, tokenizer, max_tokens, overlap):
         logging.warning(f"Stride was <= 0, adjusted to {stride}")
 
     current_pos = 0
+    chunk_count = 0
     while current_pos < len(tokens):
         chunk_tokens = tokens[current_pos : current_pos + effective_max_tokens]
         if not chunk_tokens:
             break
-        chunks.append(tokenizer.decode(chunk_tokens))
-        if current_pos + effective_max_tokens >= len(tokens):
-            break
-        current_pos += stride
 
+        try:
+            decoded_chunk = tokenizer.decode(chunk_tokens)
+            chunks.append(decoded_chunk)
+            chunk_count += 1
+            if chunk_count % 1000 == 0:
+                logging.debug(f"Generated chunk {chunk_count} ({len(chunk_tokens)} tokens) at pos {current_pos}")
+        except Exception as decode_err:
+            logging.warning(f"Failed to decode chunk at pos {current_pos}: {decode_err}")
+            current_pos += stride
+            continue
+
+        next_pos = current_pos + stride
+        if next_pos <= current_pos:
+            logging.error(f"Chunking loop stalled at position {current_pos}. Breaking.")
+            break
+        current_pos = next_pos
+
+    logging.debug(f"Finished chunking {len(text)} chars into {len(chunks)} chunks")
     return chunks
 
 def process_file_yield_chunks_fs(filepath, tokenizer, max_tokens, overlap):
@@ -215,23 +249,35 @@ def process_file_yield_chunks_fs(filepath, tokenizer, max_tokens, overlap):
         return 0
 
 
-def encode_batch_hf_automodel(
-    model, tokenizer, chunk_batch, device, max_seq_len
-):
-    """Encode batch using standard Hugging Face AutoModel."""
-    inputs = tokenizer(
-        chunk_batch,
-        return_tensors="pt",
-        padding=True,
-        truncation=True,
-        max_length=max_seq_len,
-    )
-    inputs = {k: v.to(device) for k, v in inputs.items()}
-    with torch.no_grad():
-        outputs = model(**inputs)
-    embeddings = outputs.last_hidden_state.mean(dim=1)
-    embeddings = embeddings.cpu().numpy()
-    return embeddings
+def encode_batch_hf_automodel(model, tokenizer, chunk_batch, device, max_seq_len):
+    """Enhanced batch encoding with additional validation."""
+    try:
+        inputs = tokenizer(
+            chunk_batch,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=max_seq_len,
+        )
+        
+        # Validate token lengths before processing
+        max_tokens = inputs['input_ids'].size(1)
+        if max_tokens > max_seq_len:
+            logging.error(f"Batch contains sequence longer than max_seq_len: {max_tokens} > {max_seq_len}")
+            raise ValueError(f"Sequence length {max_tokens} exceeds maximum {max_seq_len}")
+
+        # Move to device if not using device_map='auto'
+        if not hasattr(model, "is_quantized"):
+            inputs = {k: v.to(device) for k, v in inputs.items()}
+        
+        with torch.no_grad():
+            outputs = model(**inputs)
+            
+        embeddings = outputs.last_hidden_state.mean(dim=1)
+        return embeddings.cpu().numpy()
+    except Exception as e:
+        logging.error(f"Error in encode_batch_hf_automodel: {str(e)}")
+        raise
 
 
 if __name__ == "__main__":
@@ -249,21 +295,32 @@ if __name__ == "__main__":
     try:
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=True)
         
-        # Configure 8-bit quantization
-        quantization_config = BitsAndBytesConfig(
-            load_in_8bit=True,
-        )
-
-        model = AutoModel.from_pretrained(
-            MODEL_NAME,
-            quantization_config=quantization_config,
-            device_map="auto"  # Let bitsandbytes handle device mapping
-        )
+        if device == "cuda":
+            try:
+                # Simple quantization config
+                quantization_config = BitsAndBytesConfig(
+                    load_in_8bit=True,
+                    bnb_4bit_compute_dtype=torch.float16  # Added for stability
+                )
+                
+                model = AutoModel.from_pretrained(
+                    MODEL_NAME,
+                    quantization_config=quantization_config,
+                    device_map="auto",
+                    torch_dtype=torch.float16  # Explicitly set dtype
+                )
+                model.is_quantized = True  # Mark as quantized for encode_batch
+                logging.info("Loaded model with 8-bit quantization")
+            except Exception as quant_err:
+                logging.warning(f"Quantization failed, falling back to FP16: {quant_err}")
+                model = AutoModel.from_pretrained(MODEL_NAME).to(device).half()
+        else:
+            model = AutoModel.from_pretrained(MODEL_NAME).to(device)
+        
         embedding_dim = model.config.hidden_size
         model.eval()
-        logging.info("Loaded model with 8-bit quantization.")
     except Exception as e:
-        logging.error(f"Failed to load model/tokenizer (check bitsandbytes install?): {e}", exc_info=True)
+        logging.error(f"Failed to load model/tokenizer: {e}", exc_info=True)
         sys.exit(1)
 
     conn = connect_db()
