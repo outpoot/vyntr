@@ -7,7 +7,7 @@ import torch
 import psycopg2
 import psycopg2.extras
 from pgvector.psycopg2 import register_vector
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoTokenizer, AutoModel, BitsAndBytesConfig
 from tqdm import tqdm
 import math
 import logging
@@ -248,21 +248,22 @@ if __name__ == "__main__":
     logging.info(f"Loading model and tokenizer: {MODEL_NAME}")
     try:
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=True)
-        model = AutoModel.from_pretrained(MODEL_NAME)
-        model.to(device)
-        embedding_dim = model.config.hidden_size
+        
+        # Configure 8-bit quantization
+        quantization_config = BitsAndBytesConfig(
+            load_in_8bit=True,
+        )
 
-        if device == "cuda":
-            try:
-                model.half()
-                logging.info("Applied .half() to model for FP16.")
-            except Exception as fp16_err:
-                logging.warning(
-                    f"Could not apply .half(): {fp16_err}. Using FP32."
-                )
+        model = AutoModel.from_pretrained(
+            MODEL_NAME,
+            quantization_config=quantization_config,
+            device_map="auto"  # Let bitsandbytes handle device mapping
+        )
+        embedding_dim = model.config.hidden_size
         model.eval()
+        logging.info("Loaded model with 8-bit quantization.")
     except Exception as e:
-        logging.error(f"Failed to load model/tokenizer: {e}", exc_info=True)
+        logging.error(f"Failed to load model/tokenizer (check bitsandbytes install?): {e}", exc_info=True)
         sys.exit(1)
 
     conn = connect_db()
