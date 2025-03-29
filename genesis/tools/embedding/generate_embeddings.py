@@ -105,20 +105,44 @@ def extract_relevant_text(entry):
     combined_text = f"Title: {title}\nDescription: {description}\nContent: {content}".strip()
     return combined_text
 
+def estimate_chunks_in_file_fast(filepath, approx_chars_per_chunk):
+    """Estimates chunks based on character count, avoiding tokenization."""
+    count = 0
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    entry = json.loads(line)
+                    text = extract_relevant_text(entry)
+                    if text:
+                        count += math.ceil(len(text) / approx_chars_per_chunk)
+                except json.JSONDecodeError:
+                    pass
+                except Exception:
+                    pass
+    except Exception as e:
+        logging.debug(f"Ignoring error during fast estimation for {filepath}: {e}")
+        pass
+    return count
+
 def chunk_text_by_tokens(text, tokenizer, max_tokens, overlap):
     """
-    Chunks text based on token count using the model's tokenizer,
-    correctly accounting for special tokens added by the model later.
+    Chunks text based on token count with safety buffer to prevent overflow.
     """
     if not text:
         return []
 
+    SAFETY_BUFFER = 5  # Reduce target length for safety
     num_special_tokens = tokenizer.num_special_tokens_to_add(pair=False)
-    effective_max_tokens = max_tokens - num_special_tokens
+    effective_max_tokens = max(1, max_tokens - num_special_tokens - SAFETY_BUFFER)
 
-    if effective_max_tokens <= 0:
+    if effective_max_tokens <= overlap:
+        overlap = max(0, effective_max_tokens // 4)
+        logging.debug(f"Overlap reduced to {overlap} due to effective_max_tokens limit.")
+
+    if (max_tokens - num_special_tokens) <= 0:
         logging.warning(
-            f"max_tokens ({max_tokens}) is too small for the model's special tokens ({num_special_tokens}). Cannot chunk effectively. Skipping text."
+            f"max_tokens ({max_tokens}) too small for special tokens ({num_special_tokens})."
         )
         return []
 
@@ -131,25 +155,19 @@ def chunk_text_by_tokens(text, tokenizer, max_tokens, overlap):
     stride = effective_max_tokens - overlap
     if stride <= 0:
         stride = max(1, effective_max_tokens // 2)
-        logging.debug(
-            f"Overlap ({overlap}) too large for effective_max_tokens ({effective_max_tokens}). Using stride={stride}"
-        )
+        logging.warning(f"Stride was <= 0, adjusted to {stride}")
 
-    for i in range(0, len(tokens), stride):
-        chunk_tokens = tokens[i : i + effective_max_tokens]
-        chunks.append(tokenizer.decode(chunk_tokens))
-        if i + stride >= len(tokens):
+    current_pos = 0
+    while current_pos < len(tokens):
+        chunk_tokens = tokens[current_pos : current_pos + effective_max_tokens]
+        if not chunk_tokens:
             break
-
-    if (len(tokens) - (i + effective_max_tokens)) > 0 and i > 0:
-         last_chunk_start = max(0, len(tokens) - effective_max_tokens)
-         last_chunk_tokens = tokens[last_chunk_start:]
-         last_decoded = tokenizer.decode(last_chunk_tokens)
-         if not chunks or chunks[-1] != last_decoded:
-              chunks.append(last_decoded)
+        chunks.append(tokenizer.decode(chunk_tokens))
+        if current_pos + effective_max_tokens >= len(tokens):
+            break
+        current_pos += stride
 
     return chunks
-
 
 def process_file_yield_chunks_fs(filepath, tokenizer, max_tokens, overlap):
     """
@@ -266,14 +284,16 @@ if __name__ == "__main__":
             sys.exit(1)
         logging.info(f"Found {total_files} files to process.")
 
-        # --- Estimate Total Chunks (for better progress bar) ---
+        # --- Estimate Total Chunks (Using Faster Logic) ---
         estimated_total_chunks = 0
         logging.info(
-            "Estimating total chunks (sampling files)..."
+            "Estimating total chunks (using fast character-based approximation)..."
         )
-        sample_size = min(10, max(2, total_files // 500))
+        approx_chars_per_chunk = MAX_SEQ_LENGTH * 3  # Heuristic: ~3 chars per token
+        sample_size = min(100, max(10, total_files // 20))
         if sample_size > len(all_files):
             sample_size = len(all_files)
+
         if sample_size == 0:
             logging.warning("No files found to sample for estimation.")
             estimated_total_chunks = total_files
@@ -281,46 +301,45 @@ if __name__ == "__main__":
             sample_files = np.random.choice(all_files, sample_size, replace=False)
             estimation_chunks = 0
             with ThreadPoolExecutor(
-                max_workers=MAX_CPU_WORKERS, thread_name_prefix="Estimate"
+                max_workers=max(1, os.cpu_count() // 2),  # Reduced workers for estimation
+                thread_name_prefix="EstimateFast"
             ) as executor:
                 future_to_file_est = {
-                    executor.submit(
-                        process_file_yield_chunks_fs,
-                        f,
-                        tokenizer,
-                        MAX_SEQ_LENGTH,
-                        CHUNK_OVERLAP,
-                    ): f
+                    executor.submit(estimate_chunks_in_file_fast, f, approx_chars_per_chunk): f
                     for f in sample_files
                 }
                 for future in tqdm(
                     as_completed(future_to_file_est),
                     total=len(sample_files),
-                    desc="Estimating Chunks",
+                    desc="Estimating Chunks (Fast)",
                     unit="file",
                 ):
                     filepath = future_to_file_est[future]
                     try:
-                        chunk_generator = future.result()
-                        count = sum(1 for _ in chunk_generator)
+                        count = future.result()
                         estimation_chunks += count
                     except Exception as est_exc:
                         logging.warning(
-                            f"Error during chunk estimation processing for file {filepath}: {est_exc}"
+                            f"Error during fast chunk estimation for {filepath}: {est_exc}"
                         )
 
             if sample_size > 0 and estimation_chunks > 0:
                 avg_chunks_per_file = estimation_chunks / sample_size
                 estimated_total_chunks = int(avg_chunks_per_file * total_files)
                 logging.info(
-                    f"Estimated average chunks/file: {avg_chunks_per_file:.2f}"
+                    f"Estimated chunks/file: {avg_chunks_per_file:.2f} (from {sample_size} samples)"
                 )
-                logging.info(f"Roughly estimated total chunks: {estimated_total_chunks}")
+                logging.info(f"Estimated total chunks: {estimated_total_chunks}")
             else:
                 estimated_total_chunks = total_files
-                logging.warning(
-                    "Could not estimate total chunks effectively. Progress bar will use file count."
-                )
+                logging.warning("Chunk estimation failed. Using file count for progress.")
+
+        # Adjust CHUNK_BATCH_SIZE based on available VRAM
+        if torch.cuda.is_available():
+            free_vram = torch.cuda.get_device_properties(0).total_memory
+            # Start with conservative batch size, can be tuned
+            CHUNK_BATCH_SIZE = min(4096, max(512, int(free_vram / (2 ** 30) * 512)))
+            logging.info(f"Adjusted CHUNK_BATCH_SIZE to {CHUNK_BATCH_SIZE} based on VRAM")
 
         # --- Start Processing ---
         logging.info("Starting main processing (Embedding and DB Insert)...")
