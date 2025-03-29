@@ -271,7 +271,7 @@ if __name__ == "__main__":
         logging.info(
             "Estimating total chunks (sampling files)..."
         )
-        sample_size = min(100, max(10, total_files // 20))
+        sample_size = min(10, max(2, total_files // 500))
         if sample_size > len(all_files):
             sample_size = len(all_files)
         if sample_size == 0:
