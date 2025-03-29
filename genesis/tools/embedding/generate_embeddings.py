@@ -36,7 +36,7 @@ except Exception as e:
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 ANALYSES_DIR_PATTERN = "../analyses/partition=*/*.jsonl"
 DB_TABLE_NAME = "document_chunk_embeddings"
-CHUNK_BATCH_SIZE = 8192  # Increased batch size for token ID approach
+CHUNK_BATCH_SIZE = 4096  # Increased now that we have proper truncation
 DB_BATCH_SIZE = 5000
 MAX_SEQ_LENGTH = 512
 CHUNK_OVERLAP = 50
@@ -109,7 +109,7 @@ def extract_relevant_text(entry):
     return combined_text
 
 def chunk_text_yield_token_ids(text, tokenizer, max_tokens, overlap):
-    """Chunks text and yields lists of token IDs."""
+    """Chunks text and yields lists of token IDs with length validation."""
     if not text:
         return
 
@@ -133,7 +133,12 @@ def chunk_text_yield_token_ids(text, tokenizer, max_tokens, overlap):
         return
 
     if len(tokens) <= effective_max_tokens:
-        yield tokens
+        if len(tokens) > max_tokens:
+            logging.warning(f"Single chunk ({len(tokens)} tokens) exceeds max_tokens ({max_tokens}). Truncating.")
+            yield tokens[:max_tokens]
+        else:
+            logging.debug(f"Input fits in one chunk ({len(tokens)} tokens).")
+            yield tokens
         return
 
     stride = effective_max_tokens - overlap
@@ -141,12 +146,27 @@ def chunk_text_yield_token_ids(text, tokenizer, max_tokens, overlap):
         stride = max(1, effective_max_tokens // 2)
 
     current_pos = 0
+    chunk_count = 0
     while current_pos < len(tokens):
         chunk_tokens = tokens[current_pos : current_pos + effective_max_tokens]
         if not chunk_tokens:
             break
+
+        if len(chunk_tokens) > effective_max_tokens:
+            logging.error(f"Chunk slice yielded {len(chunk_tokens)} tokens, exceeding effective_max_tokens {effective_max_tokens}. Truncating.")
+            chunk_tokens = chunk_tokens[:effective_max_tokens]
+
+        logging.debug(f"Yielding chunk {chunk_count} with {len(chunk_tokens)} tokens (effective_max={effective_max_tokens}).")
         yield chunk_tokens
-        current_pos += stride
+        chunk_count += 1
+
+        next_pos = current_pos + stride
+        if next_pos <= current_pos:
+            logging.error(f"Chunking loop stalled at position {current_pos}. Breaking.")
+            break
+        current_pos = next_pos
+
+    logging.debug(f"Finished yielding {chunk_count} token ID chunks")
 
 def process_file_yield_token_ids_fs(filepath, tokenizer, max_tokens, overlap):
     """Worker function yielding (url, chunk_id, List[int]) tuples."""
@@ -181,19 +201,21 @@ def process_file_yield_token_ids_fs(filepath, tokenizer, max_tokens, overlap):
         logging.error(f"Failed to process file {filepath}: {e}")
 
 def encode_batch_token_ids(model, tokenizer, batch_data, device, max_seq_len):
-    """Encodes a batch of (url, chunk_id, List[int]) data."""
+    """Encodes a batch of token ID lists with forced truncation."""
     try:
         token_id_lists = [item[2] for item in batch_data]
         batch_dicts = [{"input_ids": ids} for ids in token_id_lists]
 
         data_collator = DataCollatorWithPadding(
             tokenizer=tokenizer,
-            padding=True,
+            padding='max_length',
             max_length=max_seq_len,
+            truncation=True,
             return_tensors="pt"
         )
         inputs = data_collator(batch_dicts)
         inputs = {k: v.to(device) for k, v in inputs.items()}
+        logging.debug(f"Padded/Truncated batch shape: {inputs['input_ids'].shape}")
 
         with torch.no_grad():
             outputs = model(**inputs)
@@ -273,6 +295,10 @@ if __name__ == "__main__":
                 file_path = submitted_futures[future]
                 try:
                     for url, chunk_id, token_ids in future.result():
+                        if len(token_ids) > MAX_SEQ_LENGTH * 1.1:
+                            logging.warning(f"Received abnormally long token list ({len(token_ids)} tokens) from chunker for {url} chunk {chunk_id}. Skipping.")
+                            continue
+
                         model_input_batch.append((url, chunk_id, token_ids))
 
                         if len(model_input_batch) >= CHUNK_BATCH_SIZE:
