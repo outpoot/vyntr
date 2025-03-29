@@ -19,7 +19,6 @@ import sys
 # --- Load Environment Variables ---
 try:
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    dotenv_path = os.path.abspath(os.path.join(script_dir, '..', '..', '..', '.env'))
     dotenv_path = os.path.abspath(os.path.join(script_dir, "..", "..", "..", ".env"))
     logging.info(f"Attempting to load .env file from: {dotenv_path}")
     if not os.path.exists(dotenv_path):
@@ -94,29 +93,25 @@ def create_table_if_not_exists(conn, embedding_dim):
 def load_processed_chunks(conn):
     """Queries the database and returns a set of (url, chunk_id) tuples already processed."""
     processed_chunks = set()
-    logging.info(f"Querying DB for already processed chunks in '{DB_TABLE_NAME}'...")
-    start_time = time.time()
     try:
         with conn.cursor() as cur:
+            logging.info(f"Querying DB for already processed chunks in '{DB_TABLE_NAME}'...")
+            start_time = time.time()
+            
             cur.execute(f"SELECT url, chunk_id FROM {DB_TABLE_NAME};")
-            # Fetch in batches to avoid loading huge amounts into memory at once if needed
-            # However, for typical primary key lookups, fetchall might be okay.
-            # Adjust fetchmany size if memory becomes an issue.
-            # while True:
-            #     rows = cur.fetchmany(50000) # Adjust size as needed
-            #     if not rows:
-            #         break
-            #     processed_chunks.update(rows)
             rows = cur.fetchall()
-            processed_chunks.update(rows)  # Store as set of tuples for O(1) lookup
-        end_time = time.time()
-        logging.info(
-            f"Loaded {len(processed_chunks):,} existing chunk identifiers in {end_time - start_time:.2f} seconds."
-        )
+            processed_chunks.update(rows)
+            
+            end_time = time.time()
+            logging.info(f"Loaded {len(processed_chunks):,} existing chunk identifiers in {end_time - start_time:.2f} seconds.")
+            return processed_chunks
+
     except psycopg2.Error as e:
-        logging.error(f"Error querying processed chunks: {e}")
-        logging.warning("Proceeding without knowledge of previously processed chunks.")
-    return processed_chunks
+        logging.error(f"Database error loading processed chunks: {e}", exc_info=True)
+        raise  # Re-raise to handle in main
+    except Exception as e:
+        logging.error(f"Unexpected error loading processed chunks: {e}", exc_info=True)
+        raise  # Re-raise to handle in main
 
 
 def extract_relevant_text(entry):
@@ -255,13 +250,22 @@ if __name__ == "__main__":
         logging.error(f"Failed to load model/tokenizer: {e}", exc_info=True)
         sys.exit(1)
 
-    # Database Setup and Checkpoint Loading
-    conn = connect_db()
-    processed_chunks_set = set()  # Initialize empty set
-    try:  # Wrap DB and processing in try/finally to ensure connection closure
+    # Database Setup and Loading Existing Chunks
+    conn = None
+    try:
+        conn = connect_db()
         create_table_if_not_exists(conn, embedding_dim)
-        # <<< --- Load existing chunks --- >>>
-        processed_chunks_set = load_processed_chunks(conn)
+        
+        # Load existing chunks - this is required for resumption/deduplication
+        try:
+            processed_chunks_set = load_processed_chunks(conn)
+            if not isinstance(processed_chunks_set, set):
+                raise ValueError("load_processed_chunks did not return a set")
+            logging.info(f"Successfully loaded {len(processed_chunks_set):,} existing chunks for deduplication.")
+        except Exception as e:
+            logging.error("Failed to load existing chunks from database. This is required for correct operation.")
+            logging.error(f"Error details: {e}")
+            sys.exit(1)
 
         # --- Find Files ---
         logging.info(f"Finding files matching '{ANALYSES_DIR_PATTERN}'...")
