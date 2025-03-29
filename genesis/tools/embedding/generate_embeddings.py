@@ -38,11 +38,11 @@ except Exception as e:
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 ANALYSES_DIR_PATTERN = "../analyses/partition=*/*.jsonl"  # Filesystem pattern
 DB_TABLE_NAME = "document_chunk_embeddings"
-CHUNK_BATCH_SIZE = 2048
-DB_BATCH_SIZE = 4096
-MAX_SEQ_LENGTH = 256
+CHUNK_BATCH_SIZE = 13000
+DB_BATCH_SIZE = 2000
+MAX_SEQ_LENGTH = 512
 CHUNK_OVERLAP = 50
-MAX_CPU_WORKERS = min((os.cpu_count() or 4), 8)
+MAX_CPU_WORKERS = os.cpu_count()
 ETA_UPDATE_INTERVAL_SEC = 10
 
 # --- Logging Setup ---
