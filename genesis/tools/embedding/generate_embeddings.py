@@ -7,7 +7,7 @@ import torch
 import psycopg2
 import psycopg2.extras
 from pgvector.psycopg2 import register_vector
-from transformers import AutoTokenizer, AutoModel, BitsAndBytesConfig
+from transformers import AutoTokenizer, AutoModel, DataCollatorWithPadding
 from tqdm import tqdm
 import math
 import logging
@@ -36,14 +36,14 @@ except Exception as e:
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 ANALYSES_DIR_PATTERN = "../analyses/partition=*/*.jsonl"
 DB_TABLE_NAME = "document_chunk_embeddings"
-CHUNK_BATCH_SIZE = 5000  # Increased for quantization
+CHUNK_BATCH_SIZE = 8192  # Increased batch size for token ID approach
 DB_BATCH_SIZE = 5000
 MAX_SEQ_LENGTH = 512
 CHUNK_OVERLAP = 50
 SAFETY_BUFFER = 15
 MAX_CPU_WORKERS = os.cpu_count()
 ETA_UPDATE_INTERVAL_SEC = 10
-USE_QUANTIZATION = True  # Enable quantization
+USE_QUANTIZATION = False  # Disabled quantization
 
 # --- Logging Setup ---
 logging.basicConfig(
@@ -108,85 +108,48 @@ def extract_relevant_text(entry):
     combined_text = f"Title: {title}\nDescription: {description}\nContent: {content}".strip()
     return combined_text
 
-def chunk_text_by_tokens(text, tokenizer, max_tokens, overlap):
-    """
-    Enhanced chunking with robust error handling and logging.
-    """
+def chunk_text_yield_token_ids(text, tokenizer, max_tokens, overlap):
+    """Chunks text and yields lists of token IDs."""
     if not text:
-        return []
-
-    logging.debug(f"chunk_text_by_tokens received text of length {len(text)} chars")
+        return
 
     num_special_tokens = tokenizer.num_special_tokens_to_add(pair=False)
     effective_max_tokens = max(1, max_tokens - num_special_tokens - SAFETY_BUFFER)
 
     if effective_max_tokens <= overlap:
         overlap = max(0, effective_max_tokens // 4)
-        logging.debug(f"Overlap reduced to {overlap} due to effective_max_tokens limit")
 
     if (max_tokens - num_special_tokens) <= 0:
-        logging.warning(f"max_tokens ({max_tokens}) too small. Skipping text.")
-        return []
+        return
 
     try:
         tokens = tokenizer.encode(
-            text, 
-            add_special_tokens=False, 
-            max_length=MAX_SEQ_LENGTH,
-            truncation=True
+            text,
+            add_special_tokens=False,
+            truncation=False
         )
-        logging.debug(f"Input text tokenized into {len(tokens)} tokens")
     except Exception as e:
-        logging.error(f"Failed to tokenize input text (length {len(text)}): {e}")
-        return []
+        logging.error(f"Failed to tokenize text (length {len(text)}): {e}")
+        return
 
     if len(tokens) <= effective_max_tokens:
-        try:
-            decoded_chunk = tokenizer.decode(tokens)
-            logging.debug(f"Input fits in one chunk ({len(tokens)} tokens)")
-            return [decoded_chunk]
-        except Exception as decode_err:
-            logging.warning(f"Failed to decode single chunk ({len(tokens)} tokens): {decode_err}")
-            return []
+        yield tokens
+        return
 
-    chunks = []
     stride = effective_max_tokens - overlap
     if stride <= 0:
         stride = max(1, effective_max_tokens // 2)
-        logging.warning(f"Stride was <= 0, adjusted to {stride}")
 
     current_pos = 0
-    chunk_count = 0
     while current_pos < len(tokens):
         chunk_tokens = tokens[current_pos : current_pos + effective_max_tokens]
         if not chunk_tokens:
             break
+        yield chunk_tokens
+        current_pos += stride
 
-        try:
-            decoded_chunk = tokenizer.decode(chunk_tokens)
-            chunks.append(decoded_chunk)
-            chunk_count += 1
-            if chunk_count % 1000 == 0:
-                logging.debug(f"Generated chunk {chunk_count} ({len(chunk_tokens)} tokens) at pos {current_pos}")
-        except Exception as decode_err:
-            logging.warning(f"Failed to decode chunk at pos {current_pos}: {decode_err}")
-            current_pos += stride
-            continue
-
-        next_pos = current_pos + stride
-        if next_pos <= current_pos:
-            logging.error(f"Chunking loop stalled at position {current_pos}. Breaking.")
-            break
-        current_pos = next_pos
-
-    logging.debug(f"Finished chunking {len(text)} chars into {len(chunks)} chunks")
-    return chunks
-
-def process_file_yield_chunks_fs(filepath, tokenizer, max_tokens, overlap):
-    """
-    Worker function to read local file, process, and yield (url, chunk_id, chunk_text).
-    Returns the number of chunks yielded by this file.
-    """
+def process_file_yield_token_ids_fs(filepath, tokenizer, max_tokens, overlap):
+    """Worker function yielding (url, chunk_id, List[int]) tuples."""
     chunk_counts = defaultdict(int)
     try:
         with open(filepath, "r", encoding="utf-8") as f:
@@ -201,38 +164,35 @@ def process_file_yield_chunks_fs(filepath, tokenizer, max_tokens, overlap):
                     if not text:
                         continue
 
-                    chunks = chunk_text_by_tokens(
-                        text, tokenizer, max_tokens, overlap
-                    )
-                    if not chunks:
-                        continue
-
                     start_chunk_id = chunk_counts[url]
-                    for i, chunk_text in enumerate(chunks):
-                        yield (url, start_chunk_id + i, chunk_text)
-                    chunk_counts[url] += len(chunks)
+                    chunk_index = 0
+                    for token_ids in chunk_text_yield_token_ids(
+                        text, tokenizer, max_tokens, overlap
+                    ):
+                        yield (url, start_chunk_id + chunk_index, token_ids)
+                        chunk_index += 1
+                    chunk_counts[url] += chunk_index
 
                 except json.JSONDecodeError:
-                    logging.warning(
-                        f"Skipping invalid JSON on line {line_num} in {filepath}"
-                    )
+                    logging.warning(f"Invalid JSON on line {line_num} in {filepath}")
                 except Exception as e:
-                    logging.warning(
-                        f"Error processing line {line_num} in {filepath}: {e}"
-                    )
+                    logging.warning(f"Error on line {line_num} in {filepath}: {e}")
     except Exception as e:
-        logging.error(f"Failed to open or process file {filepath}: {e}")
+        logging.error(f"Failed to process file {filepath}: {e}")
 
-def encode_batch_hf_automodel(model, tokenizer, chunk_batch, device, max_seq_len):
-    """Encode batch with simplified device logging."""
+def encode_batch_token_ids(model, tokenizer, batch_data, device, max_seq_len):
+    """Encodes a batch of (url, chunk_id, List[int]) data."""
     try:
-        inputs = tokenizer(
-            chunk_batch,
-            return_tensors="pt",
+        token_id_lists = [item[2] for item in batch_data]
+        batch_dicts = [{"input_ids": ids} for ids in token_id_lists]
+
+        data_collator = DataCollatorWithPadding(
+            tokenizer=tokenizer,
             padding=True,
-            truncation=True,
             max_length=max_seq_len,
+            return_tensors="pt"
         )
+        inputs = data_collator(batch_dicts)
         inputs = {k: v.to(device) for k, v in inputs.items()}
 
         with torch.no_grad():
@@ -241,69 +201,33 @@ def encode_batch_hf_automodel(model, tokenizer, chunk_batch, device, max_seq_len
         embeddings = outputs.last_hidden_state.mean(dim=1)
         return embeddings.cpu().numpy()
     except Exception as e:
-        logging.error(f"Error in encode_batch_hf_automodel: {e}", exc_info=True)
+        logging.error(f"Error in encode_batch_token_ids: {e}", exc_info=True)
         raise
 
 if __name__ == "__main__":
     logging.info("--- Starting Embedding Generation from Filesystem ---")
     overall_start_time = time.time()
 
-    # Model loading with quantization support
+    # Model loading (simplified)
     logging.info(f"Loading model and tokenizer: {MODEL_NAME}")
     model = None
     tokenizer = None
     device = "cpu"
-    quantization_config = None
-    load_kwargs = {}
 
     try:
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=True)
-
-        if USE_QUANTIZATION:
-            try:
-                import bitsandbytes
-                quantization_config = BitsAndBytesConfig(
-                    load_in_8bit=True,
-                )
-                load_kwargs['quantization_config'] = quantization_config
-                load_kwargs['device_map'] = "auto"
-                logging.info("Attempting 8-bit quantization with device_map='auto'.")
-            except ImportError:
-                logging.warning("bitsandbytes not found! Quantization disabled.")
-                USE_QUANTIZATION = False
-
-        model = AutoModel.from_pretrained(
-            MODEL_NAME,
-            **load_kwargs
-        )
-        logging.info("Model loaded from pretrained.")
-
+        model = AutoModel.from_pretrained(MODEL_NAME)
+        
         if torch.cuda.is_available():
-            try:
-                param_device = next(model.parameters()).device
-                if 'cuda' in str(param_device):
-                    device = "cuda"
-                    logging.info(f"Model on GPU ({param_device}). Inputs target: {device}")
-                else:
-                    device = "cpu"
-                    logging.info(f"Model on CPU ({param_device}). Inputs target: {device}")
-            except Exception as e:
-                logging.warning(f"Could not determine model device ({e}), assuming cuda if available.")
-                device = "cuda" if torch.cuda.is_available() else "cpu"
+            device = "cuda"
+            model.to(device)
+            logging.info(f"Model moved to GPU: {next(model.parameters()).device}")
         else:
             device = "cpu"
-            logging.info("CUDA not available. Using CPU.")
+            logging.warning("Using CPU.")
 
         model.eval()
         embedding_dim = model.config.hidden_size
-
-        # Log memory usage if using CUDA
-        if torch.cuda.is_available():
-            try:
-                free_mem = torch.cuda.get_device_properties(0).total_memory - torch.cuda.memory_allocated(0)
-                logging.info(f"Free CUDA memory: {free_mem / 1024**2:.1f}MB")
-            except Exception as e:
-                logging.warning(f"Could not query CUDA memory: {e}")
 
     except Exception as e:
         logging.error(f"Model loading failed: {e}", exc_info=True)
@@ -336,7 +260,7 @@ if __name__ == "__main__":
         with ThreadPoolExecutor(max_workers=MAX_CPU_WORKERS) as executor:
             submitted_futures = {
                 executor.submit(
-                    process_file_yield_chunks_fs,
+                    process_file_yield_token_ids_fs,
                     f,
                     tokenizer,
                     MAX_SEQ_LENGTH,
@@ -344,28 +268,25 @@ if __name__ == "__main__":
                 ): f
                 for f in all_files
             }
-            active_iterators = []
-            completed_futures_queue = []
 
             for future in as_completed(submitted_futures):
                 file_path = submitted_futures[future]
                 try:
-                    for url, chunk_id, chunk_text in future.result():
-                        model_input_batch.append((url, chunk_id, chunk_text))
+                    for url, chunk_id, token_ids in future.result():
+                        model_input_batch.append((url, chunk_id, token_ids))
 
                         if len(model_input_batch) >= CHUNK_BATCH_SIZE:
-                            batch_to_encode_data = model_input_batch[:CHUNK_BATCH_SIZE]
+                            batch_to_encode = model_input_batch[:CHUNK_BATCH_SIZE]
                             model_input_batch = model_input_batch[CHUNK_BATCH_SIZE:]
-                            batch_texts = [item[2] for item in batch_to_encode_data]
 
                             try:
-                                embeddings = encode_batch_hf_automodel(
-                                    model, tokenizer, batch_texts, device, MAX_SEQ_LENGTH
+                                embeddings = encode_batch_token_ids(
+                                    model, tokenizer, batch_to_encode, device, MAX_SEQ_LENGTH
                                 )
 
-                                for j, (url_b, chunk_id_b, _) in enumerate(batch_to_encode_data):
+                                for j, (url_b, chunk_id_b, _) in enumerate(batch_to_encode):
                                     db_batch.append((url_b, chunk_id_b, embeddings[j].tolist()))
-                                chunks_processed_count += len(batch_to_encode_data)
+                                chunks_processed_count += len(batch_to_encode)
 
                             except Exception as model_err:
                                 logging.error(f"Fatal model error: {model_err}", exc_info=True)
@@ -403,15 +324,15 @@ if __name__ == "__main__":
                     logging.error(f"Error processing file {file_path}: {e}", exc_info=True)
 
         if model_input_batch:
-            batch_texts = [item[2] for item in model_input_batch]
+            batch_to_encode = model_input_batch
             try:
-                embeddings = encode_batch_hf_automodel(
-                    model, tokenizer, batch_texts, device, MAX_SEQ_LENGTH
+                embeddings = encode_batch_token_ids(
+                    model, tokenizer, batch_to_encode, device, MAX_SEQ_LENGTH
                 )
 
-                for j, (url_b, chunk_id_b, _) in enumerate(model_input_batch):
+                for j, (url_b, chunk_id_b, _) in enumerate(batch_to_encode):
                     db_batch.append((url_b, chunk_id_b, embeddings[j].tolist()))
-                chunks_processed_count += len(model_input_batch)
+                chunks_processed_count += len(batch_to_encode)
             except Exception as model_err:
                 logging.error(f"Fatal model error: {model_err}", exc_info=True)
                 sys.exit(1)
