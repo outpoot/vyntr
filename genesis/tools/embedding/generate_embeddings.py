@@ -7,7 +7,7 @@ import torch
 import psycopg2
 import psycopg2.extras
 from pgvector.psycopg2 import register_vector
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoTokenizer, AutoModel, BitsAndBytesConfig
 from tqdm import tqdm
 import math
 import logging
@@ -35,19 +35,19 @@ except Exception as e:
 # --- Configuration ---
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 ANALYSES_DIR_PATTERN = "../analyses/partition=*/*.jsonl"
-DB_TABLE_NAME = "document_chunk_embeddings"  # Restored original table name
-CHUNK_BATCH_SIZE = 1024  # Conservative initial size
-DB_BATCH_SIZE = 5000  # Restored original batch size
+DB_TABLE_NAME = "document_chunk_embeddings"
+CHUNK_BATCH_SIZE = 5000  # Increased for quantization
+DB_BATCH_SIZE = 5000
 MAX_SEQ_LENGTH = 512
 CHUNK_OVERLAP = 50
-SAFETY_BUFFER = 15  # Added missing configuration
+SAFETY_BUFFER = 15
 MAX_CPU_WORKERS = os.cpu_count()
 ETA_UPDATE_INTERVAL_SEC = 10
-USE_QUANTIZATION = False  # Keep quantization disabled for now
+USE_QUANTIZATION = True  # Enable quantization
 
 # --- Logging Setup ---
 logging.basicConfig(
-    level=logging.INFO,  # Restored to INFO level
+    level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
@@ -245,28 +245,65 @@ def encode_batch_hf_automodel(model, tokenizer, chunk_batch, device, max_seq_len
         raise
 
 if __name__ == "__main__":
-    logging.info(
-        "--- Starting Embedding Generation from Filesystem ---"
-    )
+    logging.info("--- Starting Embedding Generation from Filesystem ---")
     overall_start_time = time.time()
 
-    # Model loading with simplified verification
+    # Model loading with quantization support
     logging.info(f"Loading model and tokenizer: {MODEL_NAME}")
+    model = None
+    tokenizer = None
+    device = "cpu"
+    quantization_config = None
+    load_kwargs = {}
+
     try:
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=True)
-        model = AutoModel.from_pretrained(MODEL_NAME)
-        
+
+        if USE_QUANTIZATION:
+            try:
+                import bitsandbytes
+                quantization_config = BitsAndBytesConfig(
+                    load_in_8bit=True,
+                )
+                load_kwargs['quantization_config'] = quantization_config
+                load_kwargs['device_map'] = "auto"
+                logging.info("Attempting 8-bit quantization with device_map='auto'.")
+            except ImportError:
+                logging.warning("bitsandbytes not found! Quantization disabled.")
+                USE_QUANTIZATION = False
+
+        model = AutoModel.from_pretrained(
+            MODEL_NAME,
+            **load_kwargs
+        )
+        logging.info("Model loaded from pretrained.")
+
         if torch.cuda.is_available():
-            device = "cuda"
-            model.to(device)
-            # Log device placement without comparison
-            logging.info(f"Model moved to GPU. Example parameter device: {next(model.parameters()).device}")
+            try:
+                param_device = next(model.parameters()).device
+                if 'cuda' in str(param_device):
+                    device = "cuda"
+                    logging.info(f"Model on GPU ({param_device}). Inputs target: {device}")
+                else:
+                    device = "cpu"
+                    logging.info(f"Model on CPU ({param_device}). Inputs target: {device}")
+            except Exception as e:
+                logging.warning(f"Could not determine model device ({e}), assuming cuda if available.")
+                device = "cuda" if torch.cuda.is_available() else "cpu"
         else:
             device = "cpu"
-            logging.warning("CUDA not available. Using CPU.")
+            logging.info("CUDA not available. Using CPU.")
 
         model.eval()
         embedding_dim = model.config.hidden_size
+
+        # Log memory usage if using CUDA
+        if torch.cuda.is_available():
+            try:
+                free_mem = torch.cuda.get_device_properties(0).total_memory - torch.cuda.memory_allocated(0)
+                logging.info(f"Free CUDA memory: {free_mem / 1024**2:.1f}MB")
+            except Exception as e:
+                logging.warning(f"Could not query CUDA memory: {e}")
 
     except Exception as e:
         logging.error(f"Model loading failed: {e}", exc_info=True)
