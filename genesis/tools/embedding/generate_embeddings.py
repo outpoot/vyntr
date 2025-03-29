@@ -210,7 +210,6 @@ def encode_batch_token_ids(model, tokenizer, batch_data, device, max_seq_len):
             tokenizer=tokenizer,
             padding='max_length',
             max_length=max_seq_len,
-            truncation=True,
             return_tensors="pt"
         )
         inputs = data_collator(batch_dicts)
