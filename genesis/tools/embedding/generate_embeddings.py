@@ -36,14 +36,14 @@ except Exception as e:
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 ANALYSES_DIR_PATTERN = "../analyses/partition=*/*.jsonl"
 DB_TABLE_NAME = "document_chunk_embeddings"
-CHUNK_BATCH_SIZE = 512  # Conservative initial batch size
+CHUNK_BATCH_SIZE = 1024  # Conservative batch size for testing
 DB_BATCH_SIZE = 5000
 MAX_SEQ_LENGTH = 512
 CHUNK_OVERLAP = 50
 MAX_CPU_WORKERS = os.cpu_count()
 ETA_UPDATE_INTERVAL_SEC = 10
 MAX_INPUT_TOKENS = 1_000_000
-USE_QUANTIZATION = True  # Flag to control quantization
+USE_QUANTIZATION = False  # Temporarily disable quantization for debugging
 
 # --- Logging Setup ---
 logging.basicConfig(
@@ -251,7 +251,7 @@ def process_file_yield_chunks_fs(filepath, tokenizer, max_tokens, overlap):
 
 
 def encode_batch_hf_automodel(model, tokenizer, chunk_batch, device, max_seq_len):
-    """Encode batch with proper device handling and error logging."""
+    """Encode batch with enhanced device tracking and debugging."""
     try:
         inputs = tokenizer(
             chunk_batch,
@@ -260,8 +260,30 @@ def encode_batch_hf_automodel(model, tokenizer, chunk_batch, device, max_seq_len
             truncation=True,
             max_length=max_seq_len,
         )
-        # Move inputs to device (still needed even with device_map="auto")
+        logging.debug(f"Input tensor device before move: {inputs['input_ids'].device}")
+
         inputs = {k: v.to(device) for k, v in inputs.items()}
+
+        input_device = inputs['input_ids'].device
+        model_embedding_device = "N/A"
+        try:
+            if hasattr(model, 'embeddings') and hasattr(model.embeddings, 'word_embeddings'):
+                model_embedding_device = model.embeddings.word_embeddings.weight.device
+            else:
+                model_embedding_device = next(model.parameters()).device
+            logging.debug(f"Input tensor device after move: {input_device}")
+            logging.debug(f"Model embedding weight device: {model_embedding_device}")
+            if input_device != model_embedding_device:
+                logging.error(f"CRITICAL DEVICE MISMATCH: Input on {input_device}, Embeddings on {model_embedding_device}")
+        except Exception as log_err:
+            logging.warning(f"Could not determine model embedding device: {log_err}")
+            try:
+                first_param_device = next(model.parameters()).device
+                logging.debug(f"Fallback check - First model parameter device: {first_param_device}")
+                if input_device != first_param_device:
+                    logging.error(f"CRITICAL DEVICE MISMATCH (Fallback): Input on {input_device}, First Param on {first_param_device}")
+            except:
+                pass
 
         with torch.no_grad():
             outputs = model(**inputs)
@@ -271,6 +293,12 @@ def encode_batch_hf_automodel(model, tokenizer, chunk_batch, device, max_seq_len
         return embeddings
     except Exception as e:
         logging.error(f"Error in encode_batch_hf_automodel: {e}", exc_info=True)
+        try:
+            input_dev_err = inputs['input_ids'].device
+            model_dev_err = next(model.parameters()).device
+            logging.error(f"Error occurred with input device: {input_dev_err}, model device: {model_dev_err}")
+        except:
+            pass
         raise
 
 
@@ -280,49 +308,65 @@ if __name__ == "__main__":
     )
     overall_start_time = time.time()
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    logging.info(f"Using device: {device}")
-    if device == "cpu":
-        logging.warning("Running on CPU, this will be significantly slower!")
+    model = None
+    tokenizer = None
+    device = "cpu"
+    quantization_config = None
+    load_kwargs = {}
 
-    logging.info(f"Loading model and tokenizer: {MODEL_NAME}")
     try:
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=True)
 
-        # Configure quantization if enabled
         if USE_QUANTIZATION:
             try:
                 import bitsandbytes
-                quantization_config = BitsAndBytesConfig(
-                    load_in_8bit=True,
-                )
-                logging.info("Using 8-bit quantization.")
+                quantization_config = BitsAndBytesConfig(load_in_8bit=True)
+                load_kwargs['quantization_config'] = quantization_config
+                load_kwargs['device_map'] = "auto"
+                logging.info("Attempting to load with 8-bit quantization and device_map='auto'.")
             except ImportError:
                 logging.warning("bitsandbytes not found. Quantization disabled.")
-                quantization_config = None
                 USE_QUANTIZATION = False
-        else:
-            quantization_config = None
-            logging.info("Quantization disabled.")
 
-        # Load model with proper device mapping
         model = AutoModel.from_pretrained(
             MODEL_NAME,
-            quantization_config=quantization_config,
-            device_map="auto"  # Let accelerate handle device placement
+            **load_kwargs
         )
+        logging.info("Model loaded from pretrained.")
+
+        if not USE_QUANTIZATION:
+            if torch.cuda.is_available():
+                detected_device = "cuda"
+                model.to(detected_device)
+                device = detected_device
+                logging.info(f"Manually moved model to device: {device}")
+            else:
+                device = "cpu"
+                logging.info(f"CUDA not available. Model remains on CPU: {device}")
+        else:
+            if torch.cuda.is_available():
+                try:
+                    param_device = next(model.parameters()).device
+                    if 'cuda' in str(param_device):
+                        device = "cuda"
+                        logging.info(f"Model loaded with device_map. Primary compute device: {param_device}")
+                    else:
+                        device = "cpu"
+                        logging.info(f"Model loaded with device_map, but on CPU: {param_device}")
+                except Exception as e:
+                    logging.warning(f"Could not determine device from parameters ({e}), defaulting to cuda if available.")
+                    device = "cuda" if torch.cuda.is_available() else "cpu"
+            else:
+                device = "cpu"
+                logging.info("CUDA not available. Using CPU.")
+            logging.info(f"Using device_map='auto'. Primary device for inputs: {device}")
 
         embedding_dim = model.config.hidden_size
         model.eval()
-
-        # Log model device information for debugging
-        try:
-            logging.info(f"Model loaded. Example parameter device: {next(model.parameters()).device}")
-        except StopIteration:
-            logging.warning("Could not determine model parameter device (no parameters?).")
+        logging.info(f"Model ready. Target device for inputs: {device}. Example parameter device: {next(model.parameters()).device}")
 
     except Exception as e:
-        logging.error(f"Failed to load model/tokenizer: {e}", exc_info=True)
+        logging.error(f"Failed to load model/tokenizer or place on device: {e}", exc_info=True)
         sys.exit(1)
 
     conn = connect_db()
