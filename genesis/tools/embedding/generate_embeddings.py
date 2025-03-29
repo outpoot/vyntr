@@ -36,13 +36,14 @@ except Exception as e:
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 ANALYSES_DIR_PATTERN = "../analyses/partition=*/*.jsonl"
 DB_TABLE_NAME = "document_chunk_embeddings"
-CHUNK_BATCH_SIZE = 512  # Reduced for initial stability
+CHUNK_BATCH_SIZE = 512  # Conservative initial batch size
 DB_BATCH_SIZE = 5000
 MAX_SEQ_LENGTH = 512
 CHUNK_OVERLAP = 50
 MAX_CPU_WORKERS = os.cpu_count()
 ETA_UPDATE_INTERVAL_SEC = 10
-MAX_INPUT_TOKENS = 1_000_000  # Safety limit for initial tokenization
+MAX_INPUT_TOKENS = 1_000_000
+USE_QUANTIZATION = True  # Flag to control quantization
 
 # --- Logging Setup ---
 logging.basicConfig(
@@ -250,7 +251,7 @@ def process_file_yield_chunks_fs(filepath, tokenizer, max_tokens, overlap):
 
 
 def encode_batch_hf_automodel(model, tokenizer, chunk_batch, device, max_seq_len):
-    """Enhanced batch encoding with additional validation."""
+    """Encode batch with proper device handling and error logging."""
     try:
         inputs = tokenizer(
             chunk_batch,
@@ -259,24 +260,17 @@ def encode_batch_hf_automodel(model, tokenizer, chunk_batch, device, max_seq_len
             truncation=True,
             max_length=max_seq_len,
         )
-        
-        # Validate token lengths before processing
-        max_tokens = inputs['input_ids'].size(1)
-        if max_tokens > max_seq_len:
-            logging.error(f"Batch contains sequence longer than max_seq_len: {max_tokens} > {max_seq_len}")
-            raise ValueError(f"Sequence length {max_tokens} exceeds maximum {max_seq_len}")
+        # Move inputs to device (still needed even with device_map="auto")
+        inputs = {k: v.to(device) for k, v in inputs.items()}
 
-        # Move to device if not using device_map='auto'
-        if not hasattr(model, "is_quantized"):
-            inputs = {k: v.to(device) for k, v in inputs.items()}
-        
         with torch.no_grad():
             outputs = model(**inputs)
-            
+
         embeddings = outputs.last_hidden_state.mean(dim=1)
-        return embeddings.cpu().numpy()
+        embeddings = embeddings.cpu().numpy()
+        return embeddings
     except Exception as e:
-        logging.error(f"Error in encode_batch_hf_automodel: {str(e)}")
+        logging.error(f"Error in encode_batch_hf_automodel: {e}", exc_info=True)
         raise
 
 
@@ -294,31 +288,39 @@ if __name__ == "__main__":
     logging.info(f"Loading model and tokenizer: {MODEL_NAME}")
     try:
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=True)
-        
-        if device == "cuda":
+
+        # Configure quantization if enabled
+        if USE_QUANTIZATION:
             try:
-                # Simple quantization config
+                import bitsandbytes
                 quantization_config = BitsAndBytesConfig(
                     load_in_8bit=True,
-                    bnb_4bit_compute_dtype=torch.float16  # Added for stability
                 )
-                
-                model = AutoModel.from_pretrained(
-                    MODEL_NAME,
-                    quantization_config=quantization_config,
-                    device_map="auto",
-                    torch_dtype=torch.float16  # Explicitly set dtype
-                )
-                model.is_quantized = True  # Mark as quantized for encode_batch
-                logging.info("Loaded model with 8-bit quantization")
-            except Exception as quant_err:
-                logging.warning(f"Quantization failed, falling back to FP16: {quant_err}")
-                model = AutoModel.from_pretrained(MODEL_NAME).to(device).half()
+                logging.info("Using 8-bit quantization.")
+            except ImportError:
+                logging.warning("bitsandbytes not found. Quantization disabled.")
+                quantization_config = None
+                USE_QUANTIZATION = False
         else:
-            model = AutoModel.from_pretrained(MODEL_NAME).to(device)
-        
+            quantization_config = None
+            logging.info("Quantization disabled.")
+
+        # Load model with proper device mapping
+        model = AutoModel.from_pretrained(
+            MODEL_NAME,
+            quantization_config=quantization_config,
+            device_map="auto"  # Let accelerate handle device placement
+        )
+
         embedding_dim = model.config.hidden_size
         model.eval()
+
+        # Log model device information for debugging
+        try:
+            logging.info(f"Model loaded. Example parameter device: {next(model.parameters()).device}")
+        except StopIteration:
+            logging.warning("Could not determine model parameter device (no parameters?).")
+
     except Exception as e:
         logging.error(f"Failed to load model/tokenizer: {e}", exc_info=True)
         sys.exit(1)
