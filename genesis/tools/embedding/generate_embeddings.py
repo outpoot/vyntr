@@ -36,7 +36,7 @@ except Exception as e:
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 ANALYSES_DIR_PATTERN = "../analyses/partition=*/*.jsonl" # Filesystem pattern
 DB_TABLE_NAME = "document_chunk_embeddings"
-CHUNK_BATCH_SIZE = 13000
+CHUNK_BATCH_SIZE = 13300
 DB_BATCH_SIZE = 2000
 MAX_SEQ_LENGTH = 512
 CHUNK_OVERLAP = 50
