@@ -40,6 +40,7 @@ CHUNK_BATCH_SIZE = 1024  # Conservative initial size
 DB_BATCH_SIZE = 5000  # Restored original batch size
 MAX_SEQ_LENGTH = 512
 CHUNK_OVERLAP = 50
+SAFETY_BUFFER = 15  # Added missing configuration
 MAX_CPU_WORKERS = os.cpu_count()
 ETA_UPDATE_INTERVAL_SEC = 10
 USE_QUANTIZATION = False  # Keep quantization disabled for now
