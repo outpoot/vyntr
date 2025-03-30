@@ -313,6 +313,8 @@ export function parseDateQuery(query: string): { date: Date; description: string
     const unitMatch = query.match(UNIT_PATTERN);
     if (unitMatch) {
         unit = unitMatch[1] as TimeUnit;
+    } else {
+        return null;
     }
 
     query = query.replace(QUERY_PATTERN, '');

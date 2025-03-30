@@ -26,6 +26,9 @@
     --input: 60 30% 26%;
     --ring: 60 9.1% 87.1%;
     --radius: 0.5rem;
+
+    --success: 142 100% 33%;
+
     --sidebar-background: 60 100% 97%;
     --sidebar-foreground: 20 14.3% 4.1%;
     --sidebar-primary: 60 9% 87%;
@@ -57,6 +60,9 @@
     --input: 60 20% 29%;
     --ring: 60 9.1% 87.1%;
     --radius: 0.5rem;
+
+    --success: 142 100% 33%;
+
     --sidebar-background: 240 9% 13%;
     --sidebar-foreground: 60 9% 87%;
     --sidebar-primary: 240 9% 13%;

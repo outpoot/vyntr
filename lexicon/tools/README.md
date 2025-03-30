@@ -1,5 +1,5 @@
 # Vyntr Lexicon
-This is the code behind "word lookups" in Vyntr, powered by [English WordNet](https://github.com/globalwordnet/english-wordnet)
+This is the code behind "word lookups" in Vyntr, powered by [English WordNet](https://en-word.net/)
 
 To generate the needed `wn.json` in `vyntr/lexicon/wn.json`:
 1. Go to https://en-word.net/ and click "Download as XML"
@@ -11,6 +11,7 @@ To generate the needed `wn.json` in `vyntr/lexicon/wn.json`:
     - or, with `pipx install uv`
 4. Run `uv sync`
 5. Run `uv run src/convert_wn_xml_to_json.py`
+6. OPTIONAL: Run `migration.sql` to build indexes for faster look-ups.
 
 And wait a few seconds.
 

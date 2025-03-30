@@ -2,6 +2,7 @@ import { error, json } from '@sveltejs/kit';
 import { searchBliptext } from '$lib/server/bliptext';
 import { parseDateQuery } from '$lib/dateUtils';
 import { formatTimeDifference, TIME_UNITS } from '$lib/timeUtils';
+import { searchWordnet } from '$lib/server/wordnet';
 
 const MOCK_RESULTS = [
     {
@@ -134,9 +135,22 @@ export async function GET({ url }) {
     const bliptextDetail = bliptextResults.bestMatch ? { type: 'bliptext', article: bliptextResults.bestMatch } : null;
     // ========================================================
 
+    // ==================== WORD LOOKUP ====================
+    let wordDetail = null;
+    try {
+        const matches = await searchWordnet(query);
+        if (matches.length > 0) {
+            const bestMatch = matches[0];
+            wordDetail = bestMatch.entry;
+        }
+    } catch (err) {
+        console.error('Word lookup error:', err);
+    }
+
     return json({
         web: webResults,
         bliptext: bliptextDetail,
-        date: dateDetail
+        date: dateDetail,
+        word: wordDetail
     });
 }

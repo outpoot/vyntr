@@ -5,6 +5,7 @@
 	import DetailsPanelMath from '$lib/components/self/DetailsPanelMath.svelte';
 	import DetailsPanelTimer from '$lib/components/self/DetailsPanelTimer.svelte';
 	import DetailsPanelDate from '$lib/components/self/DetailsPanelDate.svelte';
+	import DetailsPanelWord from '$lib/components/self/DetailsPanelWord.svelte';
 
 	import { isMathExpression, evaluateMathExpression } from '$lib/mathUtils';
 	import { parseTimerQuery } from '$lib/timerUtils';
@@ -13,7 +14,7 @@
 	import { page } from '$app/state';
 
 	let query = $state(page.url.searchParams.get('q') || '');
-	let searchData = $state<SearchResponse>({ web: [], bliptext: null, date: null });
+	let searchData = $state<SearchResponse>({ web: [], bliptext: null, date: null, word: null });
 	let mathResult = $state<CalculatorSearchDetail | null>(null);
 	let timerSeconds = $state<number | null>(null);
 	let isLoading = $state(false);
@@ -69,7 +70,11 @@
 		<div class="flex flex-row gap-4">
 			<div class="min-w-0 lg:max-w-[700px]">
 				{#if !isLoading}
-					{#if searchData.date}
+					{#if searchData.word}
+						<div class="mb-6">
+							<DetailsPanelWord details={searchData.word} />
+						</div>
+					{:else if searchData.date}
 						<div class="mb-6">
 							<DetailsPanelDate {...searchData.date} />
 						</div>

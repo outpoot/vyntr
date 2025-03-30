@@ -1,7 +1,7 @@
 import type { ArticleData } from './article';
 import type { TimeUnit } from '$lib/dateUtils';
 
-export type SearchDetailType = 'bliptext' | 'person' | 'calculator' | 'movie' | 'date';
+export type SearchDetailType = 'bliptext' | 'person' | 'calculator' | 'movie' | 'date' | 'word';
 
 interface BaseSearchDetail {
     type: SearchDetailType;
@@ -48,12 +48,30 @@ export interface DateSearchDetail extends BaseSearchDetail {
     unit: TimeUnit;
 }
 
+export interface Definition {
+    pos: string;
+    gloss: string;
+    source?: string;
+}
+
+export interface WordDefinitionSearchDetail extends BaseSearchDetail {
+    type: 'word';
+    word: string;
+    partOfSpeech?: string | null;
+    pronunciations?: string[] | null;
+    definitions?: Definition[] | null;
+    examples?: string[] | null;
+    synonyms?: string[] | null;
+    similarWords?: string[] | null;
+}
+
 export type SearchDetail =
     | BliptextSearchDetail
     | PersonSearchDetail
     | CalculatorSearchDetail
     | MovieSearchDetail
-    | DateSearchDetail;
+    | DateSearchDetail
+    | WordDefinitionSearchDetail;
 
 export interface WebSearchResult {
     favicon: string;
@@ -68,4 +86,5 @@ export interface SearchResponse {
     web: WebSearchResult[];
     bliptext: BliptextSearchDetail | null;
     date: DateSearchDetail | null;
+    word: WordDefinitionSearchDetail | null;
 }

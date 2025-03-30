@@ -13,7 +13,7 @@
 	{#if type === 'error'}
 		<AlertCircle class="mt-0.5 h-4 w-4 flex-shrink-0 text-destructive" />
 	{:else}
-		<CheckCircle2 class="mt-0.5 h-4 w-4 flex-shrink-0 text-green-600" />
+		<CheckCircle2 class="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
 	{/if}
 	<span class:text-destructive={type === 'error'} class:text-green-600={type === 'success'}>
 		{message}
