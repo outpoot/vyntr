@@ -1,5 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import { searchBliptext } from '$lib/server/bliptext';
+import { parseDateQuery } from '$lib/dateUtils';
+import { formatTimeDifference, TIME_UNITS } from '$lib/timeUtils';
 
 const MOCK_RESULTS = [
     {
@@ -109,6 +111,17 @@ export async function GET({ url }) {
         throw error(400, 'Query parameter "q" is required');
     }
 
+    // ==================== DATE ====================
+    const dateResult = parseDateQuery(query);
+    const dateDetail = dateResult ? {
+        type: 'date',
+        value: Number((dateResult.milliseconds * TIME_UNITS[dateResult.unit].multiplier).toFixed(TIME_UNITS[dateResult.unit].decimals)),
+        description: dateResult.description,
+        date: dateResult.date.toISOString(),
+        unit: dateResult.unit,
+        displayText: formatTimeDifference(dateResult.milliseconds, dateResult.unit)
+    } : null;
+
     // ==================== WEB SEARCH ====================
     // to-be replaced with actual search results
     const webResults = MOCK_RESULTS.map(result => ({
@@ -123,6 +136,7 @@ export async function GET({ url }) {
 
     return json({
         web: webResults,
-        bliptext: bliptextDetail
+        bliptext: bliptextDetail,
+        date: dateDetail
     });
 }

@@ -1,6 +1,7 @@
 import type { ArticleData } from './article';
+import type { TimeUnit } from '$lib/dateUtils';
 
-export type SearchDetailType = 'bliptext' | 'person' | 'calculator' | 'movie';
+export type SearchDetailType = 'bliptext' | 'person' | 'calculator' | 'movie' | 'date';
 
 interface BaseSearchDetail {
     type: SearchDetailType;
@@ -38,8 +39,33 @@ export interface MovieSearchDetail extends BaseSearchDetail {
     runtime?: string;
 }
 
-export type SearchDetail = 
-    | BliptextSearchDetail 
-    | PersonSearchDetail 
-    | CalculatorSearchDetail 
-    | MovieSearchDetail;
+export interface DateSearchDetail extends BaseSearchDetail {
+    type: 'date';
+    value: number;
+    description: string;
+    date: string;
+    displayText: string;
+    unit: TimeUnit;
+}
+
+export type SearchDetail =
+    | BliptextSearchDetail
+    | PersonSearchDetail
+    | CalculatorSearchDetail
+    | MovieSearchDetail
+    | DateSearchDetail;
+
+export interface WebSearchResult {
+    favicon: string;
+    title: string;
+    url: string;
+    pageTitle: string;
+    date: string;
+    preview: string;
+}
+
+export interface SearchResponse {
+    web: WebSearchResult[];
+    bliptext: BliptextSearchDetail | null;
+    date: DateSearchDetail | null;
+}

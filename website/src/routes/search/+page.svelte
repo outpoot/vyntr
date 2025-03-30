@@ -4,15 +4,16 @@
 	import DetailsPanelBliptext from '$lib/components/self/DetailsPanelBliptext.svelte';
 	import DetailsPanelMath from '$lib/components/self/DetailsPanelMath.svelte';
 	import DetailsPanelTimer from '$lib/components/self/DetailsPanelTimer.svelte';
+	import DetailsPanelDate from '$lib/components/self/DetailsPanelDate.svelte';
 
 	import { isMathExpression, evaluateMathExpression } from '$lib/mathUtils';
 	import { parseTimerQuery } from '$lib/timerUtils';
-	import type { CalculatorSearchDetail } from '$lib/types/searchDetails';
+	import type { CalculatorSearchDetail, SearchResponse } from '$lib/types/searchDetails';
 
 	import { page } from '$app/state';
 
 	let query = $state(page.url.searchParams.get('q') || '');
-	let searchData = $state({ web: [], bliptext: null });
+	let searchData = $state<SearchResponse>({ web: [], bliptext: null, date: null });
 	let mathResult = $state<CalculatorSearchDetail | null>(null);
 	let timerSeconds = $state<number | null>(null);
 	let isLoading = $state(false);
@@ -68,7 +69,11 @@
 		<div class="flex flex-row gap-4">
 			<div class="min-w-0 lg:max-w-[700px]">
 				{#if !isLoading}
-					{#if timerSeconds !== null}
+					{#if searchData.date}
+						<div class="mb-6">
+							<DetailsPanelDate {...searchData.date} />
+						</div>
+					{:else if timerSeconds !== null}
 						<div class="mb-6">
 							<DetailsPanelTimer seconds={timerSeconds} />
 						</div>
