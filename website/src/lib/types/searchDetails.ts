@@ -1,5 +1,5 @@
 import type { ArticleData } from './article';
-import type { TimeUnit } from '$lib/dateUtils';
+import type { TimeUnit } from '$lib/utils/date';
 
 export type SearchDetailType = 'bliptext' | 'person' | 'calculator' | 'movie' | 'date' | 'word';
 

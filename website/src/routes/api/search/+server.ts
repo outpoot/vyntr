@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import { searchBliptext } from '$lib/server/bliptext';
-import { parseDateQuery } from '$lib/dateUtils';
-import { formatTimeDifference, TIME_UNITS } from '$lib/timeUtils';
+import { parseDateQuery } from '$lib/utils/date';
+import { formatTimeDifference, TIME_UNITS } from '$lib/utils/time';
 import { searchWordnet } from '$lib/server/wordnet';
 
 const MOCK_RESULTS = [

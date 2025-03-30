@@ -1,4 +1,4 @@
-import { TIME_UNITS } from './timeUtils';
+import { TIME_UNITS } from './time';
 
 type Holiday = {
     name: string;

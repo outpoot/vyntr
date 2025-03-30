@@ -7,8 +7,8 @@
 	import DetailsPanelDate from '$lib/components/self/DetailsPanelDate.svelte';
 	import DetailsPanelWord from '$lib/components/self/DetailsPanelWord.svelte';
 
-	import { isMathExpression, evaluateMathExpression } from '$lib/mathUtils';
-	import { parseTimerQuery } from '$lib/timerUtils';
+	import { isMathExpression, evaluateMathExpression } from '$lib/utils/math';
+	import { parseTimerQuery } from '$lib/utils/timer';
 	import type { CalculatorSearchDetail, SearchResponse } from '$lib/types/searchDetails';
 
 	import { page } from '$app/state';

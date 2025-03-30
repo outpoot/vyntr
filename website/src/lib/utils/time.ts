@@ -1,4 +1,4 @@
-import type { TimeUnit } from './dateUtils';
+import type { TimeUnit } from './date';
 
 export const TIME_UNITS = {
     // Extremely small units (10^-30 to 10^-18)
