@@ -2,19 +2,17 @@ import time
 import glob
 import json
 import os
-import numpy as np
 import torch
 import psycopg2
 import psycopg2.extras
 from pgvector.psycopg2 import register_vector
 from transformers import AutoTokenizer, AutoModel, DataCollatorWithPadding
 from tqdm import tqdm
-import math
 import logging
 from collections import defaultdict
 from dotenv import load_dotenv
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # --- Load Environment Variables ---
 try:
@@ -36,14 +34,13 @@ except Exception as e:
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 ANALYSES_DIR_PATTERN = "../analyses/partition=*/*.jsonl"
 DB_TABLE_NAME = "document_chunk_embeddings"
-CHUNK_BATCH_SIZE = 4096  # Increased now that we have proper truncation
+CHUNK_BATCH_SIZE = 1000
 DB_BATCH_SIZE = 5000
 MAX_SEQ_LENGTH = 512
 CHUNK_OVERLAP = 50
 SAFETY_BUFFER = 15
 MAX_CPU_WORKERS = os.cpu_count()
 ETA_UPDATE_INTERVAL_SEC = 10
-USE_QUANTIZATION = False  # Disabled quantization
 
 # --- Logging Setup ---
 logging.basicConfig(
@@ -70,7 +67,6 @@ def connect_db():
     except psycopg2.OperationalError as e:
         logging.error(f"Database connection failed: {e}")
         raise
-
 
 def create_table_if_not_exists(conn, embedding_dim):
     """Creates the chunk embeddings table if it doesn't exist."""
