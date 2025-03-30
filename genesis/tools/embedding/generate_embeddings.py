@@ -35,7 +35,7 @@ MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 ANALYSES_DIR_PATTERN = "../analyses/partition=*/*.jsonl"
 DB_TABLE_NAME = "document_chunk_embeddings"
 CHUNK_BATCH_SIZE = 1000
-DB_BATCH_SIZE = 5000
+DB_BATCH_SIZE = 50000
 MAX_SEQ_LENGTH = 512
 CHUNK_OVERLAP = 50
 SAFETY_BUFFER = 15
@@ -225,29 +225,60 @@ if __name__ == "__main__":
     logging.info("--- Starting Embedding Generation from Filesystem ---")
     overall_start_time = time.time()
 
-    # Model loading (simplified)
-    logging.info(f"Loading model and tokenizer: {MODEL_NAME}")
+    # --- Model and Tokenizer Loading ---
+    logging.info(f"Loading tokenizer: {MODEL_NAME}")
     model = None
     tokenizer = None
-    device = "cpu"
+    device = "cpu"  # Default to CPU
+    model_precision = "FP32" # Track precision for logging
 
     try:
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=True)
-        model = AutoModel.from_pretrained(MODEL_NAME)
-        
-        if torch.cuda.is_available():
-            device = "cuda"
-            model.to(device)
-            logging.info(f"Model moved to GPU: {next(model.parameters()).device}")
-        else:
-            device = "cpu"
-            logging.warning("Using CPU.")
 
-        model.eval()
+        if torch.cuda.is_available():
+            gpu_name = torch.cuda.get_device_name(0)
+            logging.info(f"GPU detected: {gpu_name}. Attempting to load model in 8-bit.")
+            try:
+                # Requires bitsandbytes and accelerate libraries
+                model = AutoModel.from_pretrained(
+                    MODEL_NAME,
+                    load_in_8bit=True,
+                )
+                # Check where the model was actually placed
+                device = str(next(model.parameters()).device)
+                model_precision = "INT8"
+                logging.info(f"Successfully loaded model in 8-bit on {device}.")
+
+            except ImportError:
+                logging.warning(
+                    "bitsandbytes or accelerate not installed. Falling back to default precision (FP32) on GPU."
+                )
+                device = "cuda"
+                model = AutoModel.from_pretrained(MODEL_NAME)
+                model.to(device)
+                model_precision = "FP32"
+            except Exception as e:
+                logging.warning(
+                    f"Failed to load model in 8-bit: {e}. Falling back to default precision (FP32) on GPU."
+                )
+                device = "cuda"
+                model = AutoModel.from_pretrained(MODEL_NAME)
+                model.to(device)
+                model_precision = "FP32"
+        else:
+            logging.warning(
+                "CUDA not available. Using CPU with default precision (FP32)."
+            )
+            device = "cpu"
+            model = AutoModel.from_pretrained(MODEL_NAME)
+            model_precision = "FP32"
+
+        model.eval()  # Set model to evaluation mode
         embedding_dim = model.config.hidden_size
+        logging.info(f"Model ready. Precision: {model_precision}. Device: {device}. Embedding Dim: {embedding_dim}")
 
     except Exception as e:
-        logging.error(f"Model loading failed: {e}", exc_info=True)
+        logging.error(f"Model or Tokenizer loading failed: {e}", exc_info=True)
         sys.exit(1)
 
     conn = connect_db()
@@ -388,6 +419,7 @@ if __name__ == "__main__":
             conn.close()
             logging.info("Database connection closed.")
 
+    # --- Final Summary ---
     overall_end_time = time.time()
     total_runtime = overall_end_time - overall_start_time
 
@@ -395,5 +427,6 @@ if __name__ == "__main__":
     logging.info(
         f"Total Runtime: {time.strftime('%H:%M:%S', time.gmtime(total_runtime))}"
     )
+    logging.info(f"Model Precision Used: {model_precision}")
     logging.info(f"Total Chunks Embedded: {chunks_processed_count}")
-    logging.info(f"Total Files Processed: {files_processed_count}")
+    logging.info(f"Total Files Processed: {files_processed_count}/{total_files}")

@@ -37,6 +37,15 @@ Uses current OpenAI pricing for text-embedding-3-small.
 > We use `all-MiniLM-L6-v2` internally. However, this script was written before we decided what model to use.
 > We used `price.py` to calculate the token count for estimations on total duration.
 
+If the script doesn't detect CUDA, run the following commands:
+```
+uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+uv pip install beautifulsoup4 boto3 chardet python-dotenv fastembed h5py huggingface-hub light-embed nltk onnxruntime-gpu pgvector psycopg2-binary sentence-transformers tiktoken transformers tqdm numpy psycopg2
+python -c "import torch; print(f'PyTorch version: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}'); print(f'Device name: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}')"
+```
+
+If you see `"CUDA available: True"`and `PyTorch version: x.x.x+cu1xx`, you should be good to go.
+
 ## Environment Setup
 ### .env
 For `.env`, head to the main **README.md**, section "Environment".
