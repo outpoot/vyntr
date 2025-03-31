@@ -14,6 +14,7 @@
 
 	import { page } from '$app/state';
 	import DetailsPanelUnitConversion from '$lib/components/self/DetailsPanelUnitConversion.svelte';
+	import { Separator } from '$lib/components/ui/separator';
 
 	let query = $state(page.url.searchParams.get('q') || '');
 	let searchData = $state<SearchResponse>({
@@ -72,38 +73,31 @@
 	<title>{query} - Vyntr Search</title>
 </svelte:head>
 
-<div class="px-8 md:ml-8 lg:ml-16 xl:ml-24">
-	<div class="mt-4 flex flex-col justify-start gap-4">
-		<SearchInput bind:value={query} enableAutocomplete={false} showTrailingButtons={false} />
+<div class="px-8">
+	<div class="mt-4 flex flex-col items-start gap-4">
+		<div class="w-full lg:w-[700px]">
+			<SearchInput bind:value={query} enableAutocomplete={false} showTrailingButtons={false} />
+		</div>
 
 		<div class="flex flex-row gap-4">
-			<div class="min-w-0 lg:max-w-[700px]">
+			<div class="min-w-0 flex-1 lg:max-w-[700px]">
 				{#if !isLoading}
-					{#if searchData.unitConversion}
-						<div class="mb-6">
+					<div class="mb-6">
+						{#if searchData.unitConversion}
 							<DetailsPanelUnitConversion details={searchData.unitConversion} />
-						</div>
-					{:else if searchData.currency}
-						<div class="mb-6">
+						{:else if searchData.currency}
 							<DetailsPanelCurrency details={searchData.currency} />
-						</div>
-					{:else if searchData.word}
-						<div class="mb-6">
+						{:else if searchData.word}
 							<DetailsPanelWord details={searchData.word} />
-						</div>
-					{:else if searchData.date}
-						<div class="mb-6">
+						{:else if searchData.date}
 							<DetailsPanelDate {...searchData.date} />
-						</div>
-					{:else if timerSeconds !== null}
-						<div class="mb-6">
+						{:else if timerSeconds !== null}
 							<DetailsPanelTimer seconds={timerSeconds} />
-						</div>
-					{:else if mathResult}
-						<div class="mb-6">
+						{:else if mathResult}
 							<DetailsPanelMath details={mathResult} />
-						</div>
-					{/if}
+						{/if}
+					</div>
+
 					<SearchResults results={searchData.web} />
 				{:else}
 					<!-- skeleton here would be better i think -->
@@ -112,7 +106,7 @@
 			</div>
 
 			{#if searchData.bliptext}
-				<div class="w-64 flex-shrink-0">
+				<div class="hidden w-64 flex-shrink-0 lg:block">
 					<DetailsPanelBliptext details={searchData.bliptext} />
 				</div>
 			{/if}

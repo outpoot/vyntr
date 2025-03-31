@@ -128,7 +128,7 @@
 </script>
 
 <div
-	class="relative mb-6 h-[120px] overflow-hidden rounded-xl border bg-card shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md"
+	class="relative h-[120px] overflow-hidden rounded-xl border bg-card shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md"
 >
 	<div class="absolute left-0 right-0 top-0 z-10 flex justify-between p-2">
 		<Button variant="ghost" size="sm" onclick={toggleMode} class="w-[110px]">

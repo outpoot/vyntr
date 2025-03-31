@@ -6,7 +6,7 @@
 </script>
 
 {#if details}
-	<Card.Root class="relative mb-6 w-full bg-card text-card-foreground rounded-xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md">
+	<Card.Root class="relative w-full bg-card text-card-foreground rounded-xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md">
 		<Card.Header class="pb-3">
 			<Card.Title>Calculator</Card.Title>
 		</Card.Header>

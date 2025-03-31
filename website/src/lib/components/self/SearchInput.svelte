@@ -8,7 +8,8 @@
 	let {
 		value = $bindable(),
 		enableAutocomplete = $bindable(true),
-		showTrailingButtons = true
+		showTrailingButtons = true,
+		className = $bindable(''),
 	} = $props();
 
 	let searchIcon: any;
@@ -84,7 +85,7 @@
 	}
 </script>
 
-<form class="w-full max-w-3xl" onsubmit={handleSubmit}>
+<form class="w-full {className}" onsubmit={handleSubmit}>
 	<div class="relative w-full">
 		<SearchIcon
 			bind:this={searchIcon}

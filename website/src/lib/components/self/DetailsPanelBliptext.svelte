@@ -20,7 +20,9 @@
 </script>
 
 {#if details}
-	<Card.Root class="z-0 h-fit w-96 bg-card text-card-foreground rounded-xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md">
+	<Card.Root
+		class="z-0 h-fit w-96 rounded-xl bg-card text-card-foreground shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md"
+	>
 		<Card.Header class="pb-3">
 			<Card.Title class="text-lg font-semibold leading-none tracking-tight">
 				{details.article.title}

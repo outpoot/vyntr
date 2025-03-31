@@ -2,8 +2,7 @@
 	import '../app.css';
 	import { ModeWatcher } from 'mode-watcher';
 	import AppSidebar from '$lib/components/self/AppSidebar.svelte';
-	import TopBar from '$lib/components/self/TopBar.svelte';
-	import * as Sidebar from '$lib/components/ui/sidebar';
+		import * as Sidebar from '$lib/components/ui/sidebar';
 	import { page } from '$app/state';
 
 	let { children } = $props();
@@ -23,7 +22,6 @@
 				<AppSidebar />
 			</div>
 			<div class="flex min-w-0 flex-1 flex-col">
-				<TopBar />
 				<main class="relative flex-1 overflow-y-auto">
 					{@render children()}
 				</main>

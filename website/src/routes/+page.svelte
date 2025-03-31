@@ -1,6 +1,6 @@
 <script lang="ts">
-    import SearchInput from '$lib/components/self/SearchInput.svelte';
-    import TrailingButtons from '$lib/components/self/TrailingButtons.svelte';
+	import SearchInput from '$lib/components/self/SearchInput.svelte';
+	import TrailingButtons from '$lib/components/self/TrailingButtons.svelte';
 	import { Button } from '$lib/components/ui/button';
 </script>
 
@@ -9,12 +9,14 @@
 </svelte:head>
 
 <div class="relative flex h-screen flex-col items-center gap-3" style="padding-top: 23vh">
-	<h1 class="montserrat-black relative select-none text-[4rem] text-primary-foreground sm:text-[5rem] md:text-[8rem]">
+	<h1
+		class="montserrat-black relative select-none text-[4rem] text-primary-foreground sm:text-[5rem] md:text-[8rem]"
+	>
 		Vyntr
 	</h1>
-    
-    <SearchInput />
-    <TrailingButtons />
+
+	<SearchInput className="max-w-3xl" />
+	<TrailingButtons />
 </div>
 
 <footer class="space-x-2 border-t border-border bg-primary text-sm text-primary-foreground">

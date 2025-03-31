@@ -30,13 +30,13 @@
     --success: 142 100% 33%;
 
     --sidebar-background: 60 100% 97%;
-    --sidebar-foreground: 20 14.3% 4.1%;
+    --sidebar-foreground: 60 5% 10%;
     --sidebar-primary: 60 9% 87%;
-    --sidebar-primary-foreground: 240 9% 13%;
-    --sidebar-accent: 60 4.8% 95.9%;
-    --sidebar-accent-foreground: 60 9% 87%;
-    --sidebar-border: 20 5.9% 90%;
-    --sidebar-ring: 20 14.3% 4.1%;
+    --sidebar-primary-foreground: 60 5% 15%;
+    --sidebar-accent: 60 50% 90%;
+    --sidebar-accent-foreground: 60 5% 15%;
+    --sidebar-border: 60 30% 50%;
+    --sidebar-ring: 60 9.1% 87.1%;
   }
 
   .dark {
@@ -97,5 +97,33 @@
     -ms-hyphens: auto;
     hyphens: auto;
     word-break: break-word;
+  }
+}
+
+@layer utilities {
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-muted/50 hover:bg-muted transition-colors;
+  }
+
+  /* fuck you firefox mfs */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted)) transparent;
+  }
+
+  .overflow-y-auto,
+  .overflow-x-auto {
+    @apply relative;
+    z-index: 39;
   }
 }

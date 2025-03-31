@@ -1,81 +1,57 @@
 <script lang="ts">
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
-	import { Search, MessageSquarePlus, Menu } from 'lucide-svelte';
-	import { Button } from '../ui/button';
-
-	const searchHistory = {
-		today: [
-			'how to center a div in tailwind',
-			'typescript generic constraints',
-			'svelte stores vs signals'
-		],
-		yesterday: ['best practices for api routes', 'rust vs go performance'],
-		older: [
-			'javascript array methods cheatsheet',
-			'docker compose environment variables',
-			'graphql vs rest api',
-			'web assembly tutorial'
-		]
-	};
+	import { Compass, Home, Bot, Crown, User } from 'lucide-svelte';
 </script>
 
-<Sidebar.Root collapsible="offcanvas">
-	<Sidebar.Header class="flex flex-row justify-between border-b border-border p-2">
-		<Sidebar.Trigger class="h-9 w-9 px-2 py-2">
-			<Menu size={20} />
-		</Sidebar.Trigger>
-		<div class="inline-flex items-center gap-1">
-			<Button class="h-9 w-9 px-2 py-2" variant="ghost">
-				<Search size={20} />
-			</Button>
-			<Button class="h-9 w-9 px-2 py-2" variant="ghost">
-				<MessageSquarePlus size={20} />
-			</Button>
-		</div>
+<Sidebar.Root collapsible="icon">
+	<Sidebar.Header class="flex flex-row items-center p-2">
+		<h1 class="montserrat-black ml-3 text-2xl">Vyntr</h1>
 	</Sidebar.Header>
 
 	<Sidebar.Content>
 		<Sidebar.Group>
-			<Sidebar.GroupLabel>Today</Sidebar.GroupLabel>
 			<Sidebar.GroupContent>
 				<Sidebar.Menu>
-					{#each searchHistory.today as query}
-						<Sidebar.MenuItem>
-							<Sidebar.MenuButton>
-								<span class="truncate">{query}</span>
-							</Sidebar.MenuButton>
-						</Sidebar.MenuItem>
-					{/each}
-				</Sidebar.Menu>
-			</Sidebar.GroupContent>
-		</Sidebar.Group>
-
-		<Sidebar.Group>
-			<Sidebar.GroupLabel>Yesterday</Sidebar.GroupLabel>
-			<Sidebar.GroupContent>
-				<Sidebar.Menu>
-					{#each searchHistory.yesterday as query}
-						<Sidebar.MenuItem>
-							<Sidebar.MenuButton>
-								<span class="truncate">{query}</span>
-							</Sidebar.MenuButton>
-						</Sidebar.MenuItem>
-					{/each}
-				</Sidebar.Menu>
-			</Sidebar.GroupContent>
-		</Sidebar.Group>
-
-		<Sidebar.Group>
-			<Sidebar.GroupLabel>Older</Sidebar.GroupLabel>
-			<Sidebar.GroupContent>
-				<Sidebar.Menu>
-					{#each searchHistory.older as query}
-						<Sidebar.MenuItem>
-							<Sidebar.MenuButton>
-								<span class="truncate">{query}</span>
-							</Sidebar.MenuButton>
-						</Sidebar.MenuItem>
-					{/each}
+					<Sidebar.MenuItem>
+						<Sidebar.MenuButton
+							class="h-12 space-x-1.5 p-3 text-lg font-bold group-data-[collapsible=icon]:!p-0"
+						>
+							<Home size={24} class="!h-6 !w-6" />
+							<span>Home</span>
+						</Sidebar.MenuButton>
+					</Sidebar.MenuItem>
+					<Sidebar.MenuItem>
+						<Sidebar.MenuButton
+							class="h-12 space-x-1.5 p-3 text-lg group-data-[collapsible=icon]:!p-0"
+						>
+							<Compass size={24} class="!h-6 !w-6" />
+							<span>Registry</span>
+						</Sidebar.MenuButton>
+					</Sidebar.MenuItem>
+					<Sidebar.MenuItem>
+						<Sidebar.MenuButton
+							class="h-12 space-x-1.5 p-3 text-lg group-data-[collapsible=icon]:!p-0"
+						>
+							<Bot size={24} class="!h-6 !w-6" />
+							<span>Chatbot</span>
+						</Sidebar.MenuButton>
+					</Sidebar.MenuItem>
+					<Sidebar.MenuItem>
+						<Sidebar.MenuButton
+							class="h-12 space-x-1.5 p-3 text-lg group-data-[collapsible=icon]:!p-0"
+						>
+							<Crown size={24} class="!h-6 !w-6" />
+							<span>Premium</span>
+						</Sidebar.MenuButton>
+					</Sidebar.MenuItem>
+					<Sidebar.MenuItem>
+						<Sidebar.MenuButton
+							class="h-12 space-x-1.5 p-3 text-lg group-data-[collapsible=icon]:!p-0"
+						>
+							<User size={24} class="!h-6 !w-6" />
+							<span>Profile</span>
+						</Sidebar.MenuButton>
+					</Sidebar.MenuItem>
 				</Sidebar.Menu>
 			</Sidebar.GroupContent>
 		</Sidebar.Group>
