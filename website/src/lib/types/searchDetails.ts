@@ -1,7 +1,8 @@
 import type { ArticleData } from './article';
 import type { TimeUnit } from '$lib/utils/date';
+import type { UnitCategory } from '$lib/utils/units';
 
-export type SearchDetailType = 'bliptext' | 'person' | 'calculator' | 'movie' | 'date' | 'word';
+export type SearchDetailType = 'bliptext' | 'person' | 'calculator' | 'movie' | 'date' | 'word' | 'currency' | 'unitConversion';
 
 interface BaseSearchDetail {
     type: SearchDetailType;
@@ -65,13 +66,41 @@ export interface WordDefinitionSearchDetail extends BaseSearchDetail {
     similarWords?: string[] | null;
 }
 
+export interface CurrencySearchDetail extends BaseSearchDetail {
+    type: 'currency';
+    from: {
+        code: string;
+        name: string;
+        amount: number;
+    };
+    to: {
+        code: string;
+        name: string;
+        amount: number;
+    };
+    rate: number;
+    lastUpdated: string | null;
+}
+
+export interface UnitConversionSearchDetail extends BaseSearchDetail {
+    type: 'unitConversion';
+    value: number;
+    fromUnit: string;
+    toUnit: string;
+    category: UnitCategory;
+    result: number;
+    formattedResult: string;
+}
+
 export type SearchDetail =
     | BliptextSearchDetail
     | PersonSearchDetail
     | CalculatorSearchDetail
     | MovieSearchDetail
     | DateSearchDetail
-    | WordDefinitionSearchDetail;
+    | WordDefinitionSearchDetail
+    | CurrencySearchDetail
+    | UnitConversionSearchDetail;
 
 export interface WebSearchResult {
     favicon: string;
@@ -87,4 +116,6 @@ export interface SearchResponse {
     bliptext: BliptextSearchDetail | null;
     date: DateSearchDetail | null;
     word: WordDefinitionSearchDetail | null;
+    currency: CurrencySearchDetail | null;
+    unitConversion: UnitConversionSearchDetail | null;
 }

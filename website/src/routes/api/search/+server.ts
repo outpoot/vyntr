@@ -3,6 +3,10 @@ import { searchBliptext } from '$lib/server/bliptext';
 import { parseDateQuery } from '$lib/utils/date';
 import { formatTimeDifference, TIME_UNITS } from '$lib/utils/time';
 import { searchWordnet } from '$lib/server/wordnet';
+import { parseCurrencyQuery, performConversion } from '$lib/utils/currency';
+import { parseUnitQuery } from '$lib/utils/unitParser';
+import { convertUnit, UNITS } from '$lib/utils/units';
+import { formatAmount } from '$lib/utils';
 
 const MOCK_RESULTS = [
     {
@@ -123,6 +127,20 @@ export async function GET({ url }) {
         displayText: formatTimeDifference(dateResult.milliseconds, dateResult.unit)
     } : null;
 
+    // ==================== UNIT CONVERSION ====================
+    let unitConversionDetail = null;
+    const unitMatch = parseUnitQuery(query);
+    if (unitMatch) {
+        const result = convertUnit(unitMatch.value, unitMatch.fromUnit, unitMatch.toUnit, unitMatch.category);
+        if (result !== null) {
+            unitConversionDetail = {
+                type: 'unitConversion',
+                ...unitMatch,
+                result
+            };
+        }
+    }
+
     // ==================== WEB SEARCH ====================
     // to-be replaced with actual search results
     const webResults = MOCK_RESULTS.map(result => ({
@@ -133,7 +151,6 @@ export async function GET({ url }) {
     // ==================== BLIPTEXT SEARCH ====================
     const bliptextResults = await searchBliptext(query);
     const bliptextDetail = bliptextResults.bestMatch ? { type: 'bliptext', article: bliptextResults.bestMatch } : null;
-    // ========================================================
 
     // ==================== WORD LOOKUP ====================
     let wordDetail = null;
@@ -147,10 +164,19 @@ export async function GET({ url }) {
         console.error('Word lookup error:', err);
     }
 
+    // ==================== CURRENCY CONVERSION ====================
+    let currencyDetail = null;
+    const currencyMatch = await parseCurrencyQuery(query);
+    if (currencyMatch) {
+        currencyDetail = await performConversion(currencyMatch);
+    }
+
     return json({
         web: webResults,
         bliptext: bliptextDetail,
         date: dateDetail,
-        word: wordDetail
+        word: wordDetail,
+        currency: currencyDetail,
+        unitConversion: unitConversionDetail
     });
 }

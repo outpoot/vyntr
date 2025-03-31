@@ -6,15 +6,24 @@
 	import DetailsPanelTimer from '$lib/components/self/DetailsPanelTimer.svelte';
 	import DetailsPanelDate from '$lib/components/self/DetailsPanelDate.svelte';
 	import DetailsPanelWord from '$lib/components/self/DetailsPanelWord.svelte';
+	import DetailsPanelCurrency from '$lib/components/self/DetailsPanelCurrency.svelte';
 
 	import { isMathExpression, evaluateMathExpression } from '$lib/utils/math';
 	import { parseTimerQuery } from '$lib/utils/timer';
 	import type { CalculatorSearchDetail, SearchResponse } from '$lib/types/searchDetails';
 
 	import { page } from '$app/state';
+	import DetailsPanelUnitConversion from '$lib/components/self/DetailsPanelUnitConversion.svelte';
 
 	let query = $state(page.url.searchParams.get('q') || '');
-	let searchData = $state<SearchResponse>({ web: [], bliptext: null, date: null, word: null });
+	let searchData = $state<SearchResponse>({
+		web: [],
+		bliptext: null,
+		date: null,
+		word: null,
+		currency: null,
+		unitConversion: null
+	});
 	let mathResult = $state<CalculatorSearchDetail | null>(null);
 	let timerSeconds = $state<number | null>(null);
 	let isLoading = $state(false);
@@ -70,7 +79,15 @@
 		<div class="flex flex-row gap-4">
 			<div class="min-w-0 lg:max-w-[700px]">
 				{#if !isLoading}
-					{#if searchData.word}
+					{#if searchData.unitConversion}
+						<div class="mb-6">
+							<DetailsPanelUnitConversion details={searchData.unitConversion} />
+						</div>
+					{:else if searchData.currency}
+						<div class="mb-6">
+							<DetailsPanelCurrency details={searchData.currency} />
+						</div>
+					{:else if searchData.word}
 						<div class="mb-6">
 							<DetailsPanelWord details={searchData.word} />
 						</div>
