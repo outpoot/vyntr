@@ -1,8 +1,12 @@
 <script lang="ts">
 	import { AlertCircle, CheckCircle2 } from 'lucide-svelte';
 
-	export let type: 'error' | 'success' = 'error';
-	export let message: string;
+	interface Props {
+		type?: 'error' | 'success';
+		message: string;
+	}
+
+	let { type = 'error', message }: Props = $props();
 </script>
 
 <div

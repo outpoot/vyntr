@@ -6,11 +6,11 @@
 	import { Label } from '$lib/components/ui/label';
 	import { generateVerificationToken } from '$lib/utils/dns';
 
-	let domain = '';
-	let verificationToken = '';
-	let error = '';
-	let showModal = false;
-	let isValidDomain = false;
+	let domain = $state('');
+	let verificationToken = $state('');
+	let error = $state('');
+	let showModal = $state(false);
+	let isValidDomain = $state(false);
 
 	function normalizeDomain(input: string) {
 		// remove any existing protocols

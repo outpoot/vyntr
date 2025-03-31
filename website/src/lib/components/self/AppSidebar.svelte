@@ -1,6 +1,9 @@
 <script lang="ts">
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
-	import { Compass, Home, Bot, Crown, User } from 'lucide-svelte';
+	import Crown from './icon/Crown.svelte';
+	import Explore from './icon/Explore.svelte';
+	import Home from './icon/Home.svelte';
+	import Wand from './icon/Wand.svelte';
 </script>
 
 <Sidebar.Root collapsible="icon">
@@ -24,7 +27,7 @@
 						<Sidebar.MenuButton
 							class="h-12 space-x-1.5 p-3 text-lg group-data-[collapsible=icon]:!p-0"
 						>
-							<Compass size={24} class="!h-6 !w-6" />
+							<Explore size={24} class="!h-6 !w-6" />
 							<span>Registry</span>
 						</Sidebar.MenuButton>
 					</Sidebar.MenuItem>
@@ -32,7 +35,7 @@
 						<Sidebar.MenuButton
 							class="h-12 space-x-1.5 p-3 text-lg group-data-[collapsible=icon]:!p-0"
 						>
-							<Bot size={24} class="!h-6 !w-6" />
+							<Wand size={24} class="!h-6 !w-6" />
 							<span>Chatbot</span>
 						</Sidebar.MenuButton>
 					</Sidebar.MenuItem>
@@ -48,7 +51,7 @@
 						<Sidebar.MenuButton
 							class="h-12 space-x-1.5 p-3 text-lg group-data-[collapsible=icon]:!p-0"
 						>
-							<User size={24} class="!h-6 !w-6" />
+							<!-- <Icon name="User" size={24} class="!h-6 !w-6" /> -->
 							<span>Profile</span>
 						</Sidebar.MenuButton>
 					</Sidebar.MenuItem>
