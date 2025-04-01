@@ -5,6 +5,7 @@
 	import Home from './icon/Home.svelte';
 	import Wand from './icon/Wand.svelte';
 	import { activeSidebarItem } from '$lib/stores/sidebar';
+	import { scale } from 'svelte/transition';
 
 	const navItems = [
 		{ id: 'home', label: 'Home', icon: Home },
@@ -20,7 +21,7 @@
 </script>
 
 <Sidebar.Root collapsible="icon">
-	<Sidebar.Header class="flex flex-row items-center p-2">
+	<Sidebar.Header class="mt-4 flex flex-row items-center p-2">
 		<h1 class="montserrat-black ml-3 text-2xl">Vyntr</h1>
 	</Sidebar.Header>
 
@@ -32,18 +33,33 @@
 						<Sidebar.MenuItem>
 							<div class:active={$activeSidebarItem === item.id}>
 								<Sidebar.MenuButton
-									class="menu-button h-12 space-x-1.5 p-3 text-lg group-data-[collapsible=icon]:!p-0"
+									class="menu-button flex h-12 items-center justify-start px-3 text-lg group-data-[collapsible=icon]:!p-0"
 									onclick={() => handleClick(item.id)}
 								>
 									{#if item.icon}
-										<svelte:component
-											this={item.icon}
-											size={24}
-											class="icon"
-											filled={$activeSidebarItem === item.id}
-										/>
+										<div class="relative h-6 w-6">
+											{#if $activeSidebarItem === item.id}
+												<div
+													class="absolute inset-0 flex items-center justify-center"
+													in:scale={{ duration: 150 }}
+												>
+													<svelte:component this={item.icon} size={24} class="icon" filled={true} />
+												</div>
+											{:else}
+												<div class="absolute inset-0 flex items-center justify-center">
+													<svelte:component
+														this={item.icon}
+														size={24}
+														class="icon"
+														filled={false}
+													/>
+												</div>
+											{/if}
+										</div>
 									{/if}
-									<span class:font-bold={$activeSidebarItem === item.id}>{item.label}</span>
+									<span class="font-medium" class:font-bold={$activeSidebarItem === item.id}
+										>{item.label}</span
+									>
 								</Sidebar.MenuButton>
 							</div>
 						</Sidebar.MenuItem>
@@ -64,7 +80,7 @@
 	}
 
 	:global(.menu-button:hover) {
-		@apply bg-card shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)];
+		@apply bg-border/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)];
 	}
 
 	:global(.menu-button:hover:not(.active) .icon) {
