@@ -42,6 +42,12 @@ export const auth = betterAuth({
                 defaultValue: false,
                 input: false
             },
+            banReason: {
+                type: "string",
+                required: false,
+                defaultValue: null,
+                input: false
+            }
         }
     },
 });

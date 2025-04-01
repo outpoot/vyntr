@@ -2,11 +2,51 @@
 	import '../app.css';
 	import { ModeWatcher } from 'mode-watcher';
 	import AppSidebar from '$lib/components/self/AppSidebar.svelte';
-		import * as Sidebar from '$lib/components/ui/sidebar';
+	import * as Sidebar from '$lib/components/ui/sidebar';
 	import { page } from '$app/state';
+	import { invalidateAll } from '$app/navigation';
+	import { onMount } from 'svelte';
+	import { USER_DATA } from '$lib/stores/userdata';
 
-	let { children } = $props();
+	let { data, children } = $props<{
+		data: { userSession?: any; theme: string };
+		children: any;
+	}>();
+
 	let isMainPage = $state(page.route.id === '/');
+
+	$effect(() => {
+		if (data?.userSession) {
+			USER_DATA.set(data.userSession);
+		} else {
+			USER_DATA.set(null);
+		}
+	});
+
+	// debug
+	//console.log($USER_DATA?.email);
+
+	onMount(() => {
+		console.log(
+			'%c                                             ___   \n    _____                                   /\\  \\  \n   /::\\  \\                     ___         /::\\  \\ \n  /:/\\:\\  \\                   /\\__\\       /:/\\:\\__\\\n /:/ /::\\__\\   ___     ___   /:/__/      /:/ /:/  /\n/:/_/:/\\:|__| /\\  \\   /\\__\\ /::\\  \\     /:/_/:/  / \n\\:\\/:/ /:/  / \\:\\  \\ /:/  / \\/\\:\\  \\__  \\:\\/:/  /  \n \\::/_/:/  /   \\:\\  /:/  /   ~~\\:\\/\\__\\  \\::/__/   \n  \\:\\/:/  /     \\:\\/:/  /       \\::/  /   \\:\\  \\   \n   \\::/  /       \\::/  /        /:/  /     \\:\\__\\  \n    \\/__/         \\/__/         \\/__/       \\/__/',
+			'color: #4962ee; font-family: monospace; font-size: 12px; font-weight: bold; text-shadow: 2px 2px rgba(0,0,0,0.2);'
+		);
+		console.log(
+			'%c Welcome to Vyntr! DO NOT FUCKING PASTE ANYTHING IN THE CONSOLE UNLESS YOU KNOW WHAT YOU ARE DOING.',
+			'color: #4962ee; font-family: monospace; font-size: 12px; font-weight: bold; text-shadow: 2px 2px rgba(0,0,0,0.2);'
+		);
+		console.log(
+			'%c A product by Outpoot.com',
+			'color: #4962ee; font-family: monospace; font-size: 12px; font-weight: bold; text-shadow: 2px 2px rgba(0,0,0,0.2);'
+		);
+
+		const url = new URL(window.location.href);
+		if (url.searchParams.has('signedIn')) {
+			url.searchParams.delete('signedIn');
+			window.history.replaceState({}, '', url);
+			invalidateAll();
+		}
+	});
 </script>
 
 <ModeWatcher />

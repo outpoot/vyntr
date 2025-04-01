@@ -1,32 +1,57 @@
 <script lang="ts">
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
+	import SignInConfirmDialog from './SignInConfirmDialog.svelte';
+
 	import Crown from './icon/Crown.svelte';
 	import Explore from './icon/Explore.svelte';
 	import Home from './icon/Home.svelte';
 	import Wand from './icon/Wand.svelte';
+	import SignIn from './icon/SignIn.svelte';
+
 	import { activeSidebarItem } from '$lib/stores/sidebar';
 	import { scale } from 'svelte/transition';
+	import { signIn } from '$lib/auth-client';
+	import { page } from '$app/state';
+	import { USER_DATA } from '$lib/stores/userdata';
 
-	const navItems = [
+	let navItems = $derived([
 		{ id: 'home', label: 'Home', icon: Home },
 		{ id: 'registry', label: 'Registry', icon: Explore },
 		{ id: 'chatbot', label: 'Chatbot', icon: Wand },
 		{ id: 'premium', label: 'Premium', icon: Crown },
-		{ id: 'profile', label: 'Profile' }
-	];
+		{
+			id: 'account',
+			label: $USER_DATA ? 'Profile' : 'Sign In',
+			icon: $USER_DATA ? Home : SignIn
+		}
+	]);
 
-	const handleClick = (item: string) => {
-		if ($activeSidebarItem === item) {
-			const icon = document.querySelector(`[data-item="${item}"] .icon`)?.parentElement;
-			if (icon) {
-				icon.classList.remove('pop');
-				void icon.offsetWidth;
-				icon.classList.add('pop');
+	async function handleSignIn(provider: 'discord' | 'google') {
+		await signIn.social({
+			provider,
+			callbackURL: `${page.url.pathname}?signIn=1`
+		});
+	}
+
+	const handleClick = (item: { id: string; label: string; icon: any }) => {
+		if (item.id === 'account' && !$USER_DATA) {
+			showConfirm = true;
+			return;
+		}
+
+		if ($activeSidebarItem === item.id) {
+			const iconEl = document.querySelector(`[data-item="${item.id}"] .icon`)?.parentElement;
+			if (iconEl) {
+				iconEl.classList.remove('pop');
+				void iconEl.offsetWidth;
+				iconEl.classList.add('pop');
 			}
 			return;
 		}
-		$activeSidebarItem = item;
+		$activeSidebarItem = item.id;
 	};
+
+	let showConfirm = $state(false);
 </script>
 
 <Sidebar.Root collapsible="icon">
@@ -39,15 +64,16 @@
 			<Sidebar.GroupContent>
 				<Sidebar.Menu>
 					{#each navItems as item}
+						{@const isActive = $activeSidebarItem === item.id}
 						<Sidebar.MenuItem>
-							<div class:active={$activeSidebarItem === item.id}>
+							<div class:active={isActive}>
 								<Sidebar.MenuButton
 									class="menu-button flex h-12 items-center justify-start px-3 text-lg group-data-[collapsible=icon]:!p-0"
-									onclick={() => handleClick(item.id)}
+									onclick={() => handleClick(item)}
 								>
 									{#if item.icon}
 										<div class="relative h-6 w-6" data-item={item.id}>
-											{#if $activeSidebarItem === item.id}
+											{#if isActive}
 												<div
 													class="absolute inset-0 flex items-center justify-center"
 													in:scale={{ duration: 150 }}
@@ -66,7 +92,7 @@
 											{/if}
 										</div>
 									{/if}
-									<span class="label font-medium" class:font-bold={$activeSidebarItem === item.id}>
+									<span class="label font-medium" class:font-bold={isActive}>
 										{item.label}
 									</span>
 								</Sidebar.MenuButton>
@@ -78,6 +104,8 @@
 		</Sidebar.Group>
 	</Sidebar.Content>
 </Sidebar.Root>
+
+<SignInConfirmDialog bind:open={showConfirm} onConfirm={handleSignIn} />
 
 <style lang="postcss">
 	:global(.icon) {

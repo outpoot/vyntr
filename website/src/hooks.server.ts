@@ -1,4 +1,6 @@
 import { initCurrencyStore, updateAllRates } from '$lib/utils/currencyApi';
+import { auth } from "$lib/auth";
+import { svelteKitHandler } from "better-auth/svelte-kit";
 
 let initialized = false;
 if (!initialized) {
@@ -17,5 +19,9 @@ if (!initialized) {
 }
 
 export async function handle({ event, resolve }) {
-    return await resolve(event);
+    // event.setHeaders({
+    //     'Cache-Control': 'private, no-cache, no-store, must-revalidate'
+    // });
+
+    return svelteKitHandler({ event, resolve, auth });
 }

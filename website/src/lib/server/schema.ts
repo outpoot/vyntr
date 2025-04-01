@@ -9,8 +9,9 @@ export const user = pgTable("user", {
 	image: text('image'),
 	createdAt: timestamp('created_at').notNull(),
 	updatedAt: timestamp('updated_at').notNull(),
-	isAdmin: boolean('is_admin').notNull(),
-	isBanned: boolean('is_banned').notNull()
+	isAdmin: boolean('is_admin').notNull().default(false),
+	isBanned: boolean('is_banned').notNull().default(false),
+	banReason: text('ban_reason'),
 });
 
 // ======= BETTERAUTH - DO NOT MODIFY =======
