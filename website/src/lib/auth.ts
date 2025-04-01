@@ -1,0 +1,47 @@
+import { betterAuth } from "better-auth";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { env } from '$env/dynamic/private';
+import { db } from "./server/db";
+
+if (!env.GOOGLE_CLIENT_ID) throw new Error('GOOGLE_CLIENT_ID is not set');
+if (!env.GOOGLE_CLIENT_SECRET) throw new Error('GOOGLE_CLIENT_SECRET is not set');
+
+export const auth = betterAuth({
+    baseURL: env.PUBLIC_BETTER_AUTH_URL,
+    secret: env.PRIVATE_BETTER_AUTH_SECRET,
+    appName: "Vyntr",
+    //trustedOrigins: env.TRUSTED_ORIGINS?.split(',') || [],
+
+    database: drizzleAdapter(db, {
+        provider: "pg",
+    }),
+    socialProviders: {
+        google: {
+            clientId: env.GOOGLE_CLIENT_ID,
+            clientSecret: env.GOOGLE_CLIENT_SECRET,
+        }
+    },
+
+    session: {
+        cookieCache: {
+            enabled: true,
+            maxAge: 60 * 5, // 5 minutes
+        }
+    },
+    user: {
+        additionalFields: {
+            isAdmin: {
+                type: "boolean",
+                required: true,
+                defaultValue: false,
+                input: false
+            },
+            isBanned: {
+                type: "boolean",
+                required: true,
+                defaultValue: false,
+                input: false
+            },
+        }
+    },
+});

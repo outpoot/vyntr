@@ -42,6 +42,7 @@
 		"vite": "^6.0.0"
 	},
 	"dependencies": {
+		"better-auth": "^1.2.5",
 		"drizzle-orm": "^0.38.4",
 		"mode-watcher": "^0.5.1",
 		"postgres": "^3.4.5"

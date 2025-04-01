@@ -82,21 +82,23 @@
 		<div class="flex flex-row gap-4">
 			<div class="min-w-0 flex-1 lg:max-w-[700px]">
 				{#if !isLoading}
-					<div class="mb-6">
-						{#if searchData.unitConversion}
-							<DetailsPanelUnitConversion details={searchData.unitConversion} />
-						{:else if searchData.currency}
-							<DetailsPanelCurrency details={searchData.currency} />
-						{:else if searchData.word}
-							<DetailsPanelWord details={searchData.word} />
-						{:else if searchData.date}
-							<DetailsPanelDate {...searchData.date} />
-						{:else if timerSeconds !== null}
-							<DetailsPanelTimer seconds={timerSeconds} />
-						{:else if mathResult}
-							<DetailsPanelMath details={mathResult} />
-						{/if}
-					</div>
+					{#if searchData.unitConversion || searchData.currency || searchData.word || searchData.date || timerSeconds !== null || mathResult}
+						<div class="mb-6">
+							{#if searchData.unitConversion}
+								<DetailsPanelUnitConversion details={searchData.unitConversion} />
+							{:else if searchData.currency}
+								<DetailsPanelCurrency details={searchData.currency} />
+							{:else if searchData.word}
+								<DetailsPanelWord details={searchData.word} />
+							{:else if searchData.date}
+								<DetailsPanelDate {...searchData.date} />
+							{:else if timerSeconds !== null}
+								<DetailsPanelTimer seconds={timerSeconds} />
+							{:else if mathResult}
+								<DetailsPanelMath details={mathResult} />
+							{/if}
+						</div>
+					{/if}
 
 					<SearchResults results={searchData.web} />
 				{:else}

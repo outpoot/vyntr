@@ -1,16 +1,16 @@
 import postgres from 'postgres';
-import { PRIVATE_DB_URL } from '$env/static/private';
+import { DATABASE_URL } from '$env/static/private';
 import type { WordDefinitionSearchDetail } from '$lib/types/searchDetails';
 
 const SIMILARITY_THRESHOLD = 1;
 const MEANING_THRESHOLD = 0.6;  // Lower threshold for meaning queries
 const LIMIT_RESULTS = 10;
 
-if (!PRIVATE_DB_URL) {
+if (!DATABASE_URL) {
     throw new Error('PRIVATE_DB_URL environment variable is not set');
 }
 
-const sql = postgres(PRIVATE_DB_URL);
+const sql = postgres(DATABASE_URL);
 
 interface WordMatch {
     similarity: number;

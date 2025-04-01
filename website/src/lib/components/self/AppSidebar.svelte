@@ -16,6 +16,15 @@
 	];
 
 	const handleClick = (item: string) => {
+		if ($activeSidebarItem === item) {
+			const icon = document.querySelector(`[data-item="${item}"] .icon`)?.parentElement;
+			if (icon) {
+				icon.classList.remove('pop');
+				void icon.offsetWidth;
+				icon.classList.add('pop');
+			}
+			return;
+		}
 		$activeSidebarItem = item;
 	};
 </script>
@@ -37,7 +46,7 @@
 									onclick={() => handleClick(item.id)}
 								>
 									{#if item.icon}
-										<div class="relative h-6 w-6">
+										<div class="relative h-6 w-6" data-item={item.id}>
 											{#if $activeSidebarItem === item.id}
 												<div
 													class="absolute inset-0 flex items-center justify-center"
@@ -57,9 +66,9 @@
 											{/if}
 										</div>
 									{/if}
-									<span class="font-medium" class:font-bold={$activeSidebarItem === item.id}
-										>{item.label}</span
-									>
+									<span class="label font-medium" class:font-bold={$activeSidebarItem === item.id}>
+										{item.label}
+									</span>
 								</Sidebar.MenuButton>
 							</div>
 						</Sidebar.MenuItem>
@@ -90,5 +99,29 @@
 	:global(.active .menu-button span),
 	:global(.active .menu-button .icon) {
 		@apply !text-foreground;
+	}
+
+	:global(.menu-button:hover .label) {
+		transform: rotate(2deg);
+		transition: transform 200ms ease;
+	}
+
+	:global(.label) {
+		transform: rotate(0deg);
+		transition: transform 200ms ease;
+	}
+
+	:global(.pop) {
+		animation: pop 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+	}
+
+	@keyframes pop {
+		0%,
+		100% {
+			transform: scale(1);
+		}
+		50% {
+			transform: scale(1.125);
+		}
 	}
 </style>
