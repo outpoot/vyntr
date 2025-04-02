@@ -27,11 +27,19 @@ python generate_embeddings.py
 ```
 Requires environment variables for S3 and PostgreSQL configuration. Refer to the **main** `README.md`.
 
+- `merge_embeddings.py`
+  - Merges chunk embeddings into single vectors per URL.
+```bash
+python merge_embeddings.py
+```
+Creates a new table `document_embeddings` with mean embeddings for each URL.
+
 - `price.py`
   - Estimates embedding generation costs based on token count.
 ```bash
 python price.py
 ```
+
 Uses current OpenAI pricing for text-embedding-3-small.
 > [!NOTE]
 > We use `all-MiniLM-L6-v2` internally. However, this script was written before we decided what model to use.
