@@ -29,7 +29,7 @@ export const website = pgTable("website", {
 	// Stats & Ranking
 	upvotes: integer("upvotes").notNull().default(0),
 	downvotes: integer("downvotes").notNull().default(0),
-	monthlyVisits: integer("monthly_visits").notNull().default(0),
+	visits: integer("visits").notNull().default(0),
 
 	// Status
 	isVerified: boolean("is_verified").notNull().default(false),

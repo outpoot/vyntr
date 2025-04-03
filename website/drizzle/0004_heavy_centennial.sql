@@ -1,0 +1,1 @@
+ALTER TABLE "website" RENAME COLUMN "monthly_visits" TO "visits";

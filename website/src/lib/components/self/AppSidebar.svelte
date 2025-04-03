@@ -22,14 +22,15 @@
 	import { goto } from '$app/navigation';
 
 	let navItems = $derived([
-		{ id: 'home', label: 'Home', icon: Home },
-		{ id: 'registry', label: 'Registry', icon: Explore },
-		{ id: 'chatbot', label: 'Chatbot', icon: Wand },
-		{ id: 'premium', label: 'Premium', icon: Crown },
+		{ id: 'home', label: 'Home', icon: Home, href: '/' },
+		{ id: 'registry', label: 'Registry', icon: Explore, href: '/registry' },
+		{ id: 'chatbot', label: 'Chatbot', icon: Wand, href: '/chatbot' },
+		{ id: 'premium', label: 'Premium', icon: Crown, href: '/premium' },
 		{
 			id: 'account',
 			label: $USER_DATA ? 'Profile' : 'Sign In',
-			icon: $USER_DATA ? Home : SignIn
+			icon: $USER_DATA ? Home : SignIn,
+			href: $USER_DATA ? '/profile' : undefined
 		}
 	]);
 
@@ -40,7 +41,11 @@
 		});
 	}
 
-	const handleClick = (item: { id: string; label: string; icon: any }) => {
+	const handleClick = (item: { id: string; label: string; icon: any; href?: string }) => {
+		if (item.href) {
+			goto(item.href);
+		}
+
 		if (item.id === 'account' && !$USER_DATA) {
 			showConfirm = true;
 			return;

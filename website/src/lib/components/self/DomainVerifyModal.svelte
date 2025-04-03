@@ -34,7 +34,6 @@
 	const triggerContent = $derived(
 		domainProviders.find((p) => p.value === provider)?.label ?? 'Select provider'
 	);
-	const cleanDomain = $derived(domain.replace(/^https?:\/\//, ''));
 
 	function copyToClipboard() {
 		navigator.clipboard.writeText(token);

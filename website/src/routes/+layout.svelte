@@ -7,6 +7,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { USER_DATA } from '$lib/stores/userdata';
+	import { Toaster } from '$lib/components/ui/sonner';
 
 	let { data, children } = $props<{
 		data: { userSession?: any; theme: string };
@@ -22,9 +23,6 @@
 			USER_DATA.set(null);
 		}
 	});
-
-	// debug
-	//console.log($USER_DATA?.email);
 
 	onMount(() => {
 		console.log(
@@ -50,6 +48,8 @@
 </script>
 
 <ModeWatcher />
+<Toaster />
+
 <div class="fixed inset-0 bg-background"></div>
 <div class="graddygrad fixed inset-0"></div>
 

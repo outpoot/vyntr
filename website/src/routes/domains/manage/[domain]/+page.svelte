@@ -103,7 +103,7 @@
 		hasChanges = false;
 	}
 
-	const stats = `${data.domain.monthlyVisits.toLocaleString()} visits · ${data.domain.upvotes.toLocaleString()} upvotes · ${data.domain.downvotes.toLocaleString()} downvotes`;
+	const stats = `${data.domain.visits.toLocaleString()} visits · ${data.domain.upvotes.toLocaleString()} upvotes · ${data.domain.downvotes.toLocaleString()} downvotes`;
 
 	const visibilityOptions = [
 		{ label: 'Unlisted', value: 'unlisted' },

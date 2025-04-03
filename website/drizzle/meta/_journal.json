@@ -29,6 +29,13 @@
       "when": 1743672550309,
       "tag": "0003_fast_boom_boom",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1743692994782,
+      "tag": "0004_heavy_centennial",
+      "breakpoints": true
     }
   ]
 }
