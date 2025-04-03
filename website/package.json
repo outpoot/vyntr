@@ -44,6 +44,7 @@
 		"vite": "^6.0.0"
 	},
 	"dependencies": {
+		"@sveltejs/adapter-node": "^5.2.12",
 		"better-auth": "^1.2.5",
 		"drizzle-orm": "^0.38.4",
 		"postgres": "^3.4.5"
