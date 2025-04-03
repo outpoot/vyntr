@@ -10,7 +10,7 @@
 
 <div class="relative flex h-screen flex-col items-center gap-3" style="padding-top: 23vh">
 	<h1
-		class="montserrat-black relative select-none text-[4rem] text-primary-foreground sm:text-[5rem] md:text-[8rem]"
+		class="montserrat-black relative select-none text-[4rem] text-primary sm:text-[5rem] md:text-[8rem]"
 	>
 		Vyntr
 	</h1>
@@ -19,7 +19,7 @@
 	<TrailingButtons />
 </div>
 
-<footer class="space-x-2 border-t border-border bg-primary text-sm text-primary-foreground">
+<footer class="space-x-2 border-t border-border bg-card text-sm">
 	<Button variant="ghost" href="/about">About</Button>
 	<Button variant="ghost" href="/about">Privacy</Button>
 	<Button variant="ghost" href="/about">Terms</Button>

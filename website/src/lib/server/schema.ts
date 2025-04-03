@@ -1,3 +1,4 @@
+import { relations } from "drizzle-orm";
 import { pgTable, text, timestamp, boolean, integer, json, uuid } from "drizzle-orm/pg-core";
 
 // ======= CONFIGURABLE =======
@@ -39,6 +40,17 @@ export const website = pgTable("website", {
 	createdAt: timestamp("created_at").notNull(),
 	updatedAt: timestamp("updated_at").notNull(),
 });
+
+export const websiteRelations = relations(website, ({ one }: { one: any }) => ({
+	user: one(user, {
+		fields: [website.userId],
+		references: [user.id]
+	})
+}));
+
+export const userRelations = relations(user, ({ many }: { many: any }) => ({
+	websites: many(website)
+}));
 
 // ======= BETTERAUTH - DO NOT MODIFY =======
 export const session = pgTable("session", {

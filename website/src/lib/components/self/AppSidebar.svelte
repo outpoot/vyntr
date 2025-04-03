@@ -66,8 +66,11 @@
 </script>
 
 <Sidebar.Root collapsible="icon">
-	<Sidebar.Header class="mt-4 flex flex-row items-center p-2">
-		<h1 class="montserrat-black ml-3 text-2xl">Vyntr</h1>
+	<Sidebar.Header class="ml-3 mt-4 flex flex-row items-center p-2">
+		<h1 class="montserrat-black text-2xl">Vyntr</h1>
+		{#if $USER_DATA?.isAdmin}
+			<span class="text-[0.5rem] md:text-xs">| Admin</span>
+		{/if}
 	</Sidebar.Header>
 
 	<Sidebar.Content>
@@ -147,6 +150,16 @@
 									<Dns class="h-4 w-4" />
 									<span class="label font-medium">My Domains</span>
 								</button>
+
+								{#if $USER_DATA?.isAdmin}
+									<button
+										onclick={() => goto('/admin/domains')}
+										class="flex w-full items-center gap-2 rounded-md p-3 text-sm font-medium transition-colors hover:bg-sidebar-accent"
+									>
+										<Dns class="h-4 w-4" />
+										<span class="label font-medium">Verification Center</span>
+									</button>
+								{/if}
 							</div>
 						</PopoverContent>
 					</Popover>

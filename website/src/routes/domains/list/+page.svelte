@@ -10,7 +10,7 @@
 		const base = 'inline-flex items-center rounded-full px-2 py-1 text-xs font-medium';
 		switch (status) {
 			case 'public':
-				return `${base} bg-success text-green-700`;
+				return `${base} bg-success`;
 			case 'pending':
 				return `${base} bg-yellow-50 text-yellow-700`;
 			case 'unlisted':
