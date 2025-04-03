@@ -17,10 +17,10 @@
 			<div>
 				<h3 class="text-2xl font-bold">{details.word}</h3>
 				{#if details.partOfSpeech}
-					<p class="text-sm italic text-muted-foreground">{details.partOfSpeech}</p>
+					<p class="text-sm italic text-muted">{details.partOfSpeech}</p>
 				{/if}
 				{#if details.pronunciations?.length}
-					<p class="text-sm text-muted-foreground">{details.pronunciations.join(', ')}</p>
+					<p class="text-sm text-muted">{details.pronunciations.join(', ')}</p>
 				{/if}
 			</div>
 
@@ -35,7 +35,7 @@
 							</div>
 							<div class="flex flex-col">
 								<p>{def.gloss}</p>
-								<p class="text-sm italic text-muted-foreground">{def.pos}</p>
+								<p class="text-sm italic text-muted">{def.pos}</p>
 							</div>
 						</div>
 					{/each}
@@ -47,7 +47,7 @@
 					<h4 class="mb-1 font-semibold">Examples:</h4>
 					<ul class="list-inside list-disc space-y-1">
 						{#each details.examples as example}
-							<li class="text-sm text-muted-foreground">{example}</li>
+							<li class="text-sm text-muted">{example}</li>
 						{/each}
 					</ul>
 				</div>

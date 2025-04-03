@@ -45,7 +45,7 @@
 				{#each details.article.summary.keys as key}
 					<div class="flex flex-col gap-1">
 						<h4 class="font-medium leading-none">{key.key}</h4>
-						<p class="text-sm text-muted-foreground">
+						<p class="text-sm text-muted">
 							{key.value}
 						</p>
 					</div>
@@ -85,7 +85,7 @@
 				target="_blank"
 				rel="noopener noreferrer"
 			>
-				<span class="text-xs text-muted-foreground">Powered by</span>
+				<span class="text-xs text-muted">Powered by</span>
 				<img src="https://bliptext.com/favicon.svg" alt="Bliptext logo" class="h-4 w-4" />
 				<span class="text-xs font-medium">Bliptext</span>
 			</a>

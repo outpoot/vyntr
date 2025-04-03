@@ -1,0 +1,1 @@
+ALTER TABLE "website" RENAME COLUMN "is_public" TO "is_verified";

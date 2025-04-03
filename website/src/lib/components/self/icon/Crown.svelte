@@ -2,7 +2,7 @@
 	interface Props {
 		size?: number;
 		filled?: boolean;
-        [key: string]: any;
+		[key: string]: any;
 	}
 
 	let { size = 24, filled = false, ...rest }: Props = $props();

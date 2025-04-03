@@ -27,7 +27,7 @@
 				<h3 class="text-lg font-semibold">{description}</h3>
 			{/if}
 			<p class="text-3xl font-bold">{displayText}</p>
-			<p class="text-sm text-muted-foreground">{formattedDate}</p>
+			<p class="text-sm text-muted">{formattedDate}</p>
 		</div>
 	</div>
 </div>

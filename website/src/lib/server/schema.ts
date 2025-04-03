@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, json, uuid } from "drizzle-orm/pg-core";
 
 // ======= CONFIGURABLE =======
 export const user = pgTable("user", {
@@ -12,6 +12,32 @@ export const user = pgTable("user", {
 	isAdmin: boolean('is_admin').notNull().default(false),
 	isBanned: boolean('is_banned').notNull().default(false),
 	banReason: text('ban_reason'),
+});
+
+export const website = pgTable("website", {
+	id: uuid("id").defaultRandom().primaryKey().notNull(),
+	description: text("description"),
+	userId: text("user_id").notNull().references(() => user.id),
+	domain: text("domain").notNull().unique(),
+	verifiedAt: timestamp("verified_at"),
+
+	// Website metadata
+	tags: json("tags").$type<string[]>().default([]),
+	category: text("category").notNull(),
+
+	// Stats & Ranking
+	upvotes: integer("upvotes").notNull().default(0),
+	downvotes: integer("downvotes").notNull().default(0),
+	monthlyVisits: integer("monthly_visits").notNull().default(0),
+
+	// Status
+	isVerified: boolean("is_verified").notNull().default(false),
+	status: text("status").notNull().default('unlisted'), // unlisted, pending, public, suspended
+	isFeatured: boolean("is_featured").notNull().default(false),
+
+	// Timestamps
+	createdAt: timestamp("created_at").notNull(),
+	updatedAt: timestamp("updated_at").notNull(),
 });
 
 // ======= BETTERAUTH - DO NOT MODIFY =======

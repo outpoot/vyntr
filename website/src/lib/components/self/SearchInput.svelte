@@ -90,14 +90,14 @@
 		<SearchIcon
 			bind:this={searchIcon}
 			size={24}
-			class="absolute left-5 top-1/2 z-20 h-6 w-6 -translate-y-1/2 text-primary-foreground"
+			class="absolute left-5 top-1/2 z-20 h-6 w-6 -translate-y-1/2"
 		/>
 		<input
 			bind:value={searchValue}
 			bind:this={inputRef}
 			placeholder="How do I cook..."
 			class={cn(
-				'flex h-11 w-full border bg-card px-3 py-2 pl-14 text-base text-primary-foreground shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md placeholder:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:h-12 sm:pl-16 sm:text-lg md:h-14',
+				'flex h-11 w-full border bg-card px-3 py-2 pl-14 text-base shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md placeholder:text-muted focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:h-12 sm:pl-16 sm:text-lg md:h-14',
 				showSuggestions ? 'rounded-b-none rounded-t-[1.5rem] border-b-0' : 'rounded-[1.5rem]'
 			)}
 			onfocus={() => {
@@ -115,10 +115,10 @@
 				<div class="max-h-[500px] overflow-y-auto py-2">
 					{#each filteredSuggestions as suggestion, i}
 						<button
-							class="flex w-full items-center gap-3 rounded-sm px-6 py-1 text-left text-base text-primary-foreground {i ===
+							class="flex w-full items-center gap-3 rounded-sm px-6 py-1 text-left text-base {i ===
 							selectedIndex
-								? 'bg-muted'
-								: ''} hover:bg-muted"
+								? 'bg-accent'
+								: ''} hover:bg-primary/20"
 							onmousedown={() => selectSuggestion(suggestion)}
 							onmouseover={() => (selectedIndex = i)}
 							onfocus={() => (selectedIndex = i)}

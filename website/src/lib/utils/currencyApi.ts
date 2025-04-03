@@ -122,9 +122,9 @@ export function getLastUpdateTimestamp(): string | null {
 export function initCurrencyStore() {
     console.log('Currency store initialized');
 
-    getRates('usd').then(console.log).catch(err => console.error('Failed to fetch USD rates:', err));
-    getRates('eur').then(console.log).catch(err => console.error('Failed to fetch EUR rates:', err));
-    getRates('btc').then(console.log).catch(err => console.error('Failed to fetch BTC rates:', err));
+    getRates('usd').catch(err => console.error('Failed to fetch USD rates:', err));
+    getRates('eur').catch(err => console.error('Failed to fetch EUR rates:', err));
+    getRates('btc').catch(err => console.error('Failed to fetch BTC rates:', err));
 
     lastUpdateTimestamp = new Date().toISOString();
 }

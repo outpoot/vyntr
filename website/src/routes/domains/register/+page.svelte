@@ -49,14 +49,14 @@
 
 <div class="space-y-4 p-4">
 	<Label class="text-xl font-bold">Register Your Domain</Label>
-	<p class="text-sm text-muted-foreground">Add your domain to our registry and search index</p>
+	<p class="text-sm text-muted">Add your domain to our registry and search index</p>
 
 	<div class="flex items-end gap-2">
 		<div class="w-full max-w-xl space-y-1">
 			<Label>Domain to register</Label>
 			<div class="flex items-center rounded-md border shadow-sm">
 				<span
-					class="flex items-center rounded-l-md border-r bg-muted/50 px-3 py-2.5 text-sm text-foreground/80"
+					class="flex items-center rounded-l-md border-r bg-primary/10 px-3 py-2.5 text-sm text-foreground/80"
 				>
 					https://
 				</span>

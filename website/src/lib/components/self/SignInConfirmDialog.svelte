@@ -37,7 +37,7 @@
 				<span>Continue with Google</span>
 			</Button>
 
-			<p class="text-center text-xs text-muted-foreground">
+			<p class="text-center text-xs text-muted">
 				By continuing, you agree to our
 				<a href="/legal/terms" class="text-primary hover:underline">Terms of Service</a>
 				and

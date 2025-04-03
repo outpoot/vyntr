@@ -33,13 +33,13 @@
 								onerror={() => (imageError = true)}
 							/>
 						{:else}
-							<Globe class="h-[18px] w-[18px] text-muted-foreground" />
+							<Globe class="h-[18px] w-[18px] text-muted" />
 						{/if}
 					</div>
 				</div>
 				<div class="flex flex-col py-0.5">
-					<span class="text-sm text-primary-foreground">{result.title}</span>
-					<span class="text-xs text-muted-foreground">{result.url}</span>
+					<span class="text-sm">{result.title}</span>
+					<span class="text-xs text-muted">{result.url}</span>
 				</div>
 			</div>
 
@@ -62,10 +62,10 @@
 		</DropdownMenu.Root>
 	</div>
 
-	<div class="mt-2 flex text-sm text-muted-foreground">
+	<div class="mt-2 flex text-sm text-muted">
 		<span>
 			{#if result.date}
-				<span class="text-muted-foreground/60">
+				<span class="text-muted/60">
 					{formatDate(result.date)} ―
 				</span>
 			{/if}

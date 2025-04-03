@@ -17,11 +17,11 @@
 			<div class="text-2xl font-bold">
 				{details.from.amount.toLocaleString()}
 				{details.from.code}
-				<span class="mx-1 text-muted-foreground">→</span>
+				<span class="mx-1 text-muted">→</span>
 				{formatAmount(details.to.amount)}
 				{details.to.code}
 			</div>
-			<div class="text-sm text-muted-foreground">
+			<div class="text-sm text-muted">
 				<p>1 {details.from.name} ≈ {details.rate.toFixed(6)} {details.to.name}</p>
 				<p class="mt-1 text-xs">Last updated: {formatLastUpdated(details.lastUpdated)}</p>
 			</div>
@@ -32,7 +32,7 @@
 		href="https://github.com/fawazahmed0/exchange-api"
 		target="_blank"
 		rel="noopener noreferrer"
-		class="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full bg-transparent p-1 text-muted-foreground transition-all duration-200 hover:scale-110 hover:bg-primary/20"
+		class="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full bg-transparent p-1 text-muted transition-all duration-200 hover:scale-110 hover:bg-primary/20"
 		title="Data source"
 	>
 		<ExternalLink size={16} />

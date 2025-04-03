@@ -21,7 +21,6 @@ export async function searchBliptext(query: string): Promise<SearchResults> {
     }
 
     if (!response.ok) {
-        console.log(await response.text())
         console.error('Bliptext search failed:', response.statusText);
         return { scores: [], bestMatch: null };
     }

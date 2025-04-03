@@ -18,21 +18,21 @@
 		<div class="flex w-full flex-col gap-4">
 			<div>
 				<h3 class="text-2xl font-bold">Unit Conversion</h3>
-				<p class="text-sm italic text-muted-foreground">{CATEGORY_NAMES[details.category]}</p>
+				<p class="text-sm italic text-muted">{CATEGORY_NAMES[details.category]}</p>
 			</div>
 
 			<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
 				<div class="flex flex-col">
-					<span class="text-sm text-muted-foreground">From</span>
+					<span class="text-sm text-muted">From</span>
 					<span class="text-lg font-semibold"
 						>{details.value} {getUnitDisplayName(details.fromUnit)}</span
 					>
 				</div>
 				<div class="hidden sm:block">
-					<ArrowRight class="h-5 w-5 text-muted-foreground" />
+					<ArrowRight class="h-5 w-5 text-muted" />
 				</div>
 				<div class="flex flex-col">
-					<span class="text-sm text-muted-foreground">To</span>
+					<span class="text-sm text-muted">To</span>
 					<span class="text-lg font-semibold">
 						{formatAmount(details.result)}
 						{getUnitDisplayName(details.toUnit)}

@@ -15,6 +15,20 @@
       "when": 1743534259494,
       "tag": "0001_romantic_lockheed",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1743666859056,
+      "tag": "0002_regular_wildside",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1743672550309,
+      "tag": "0003_fast_boom_boom",
+      "breakpoints": true
     }
   ]
 }

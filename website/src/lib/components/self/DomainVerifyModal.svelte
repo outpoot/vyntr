@@ -85,7 +85,7 @@
 	function handleClose() {
 		open = false;
 		if (verified) {
-			goto(`/domains/${cleanDomain}`);
+			goto('/domains/list');
 		}
 	}
 
@@ -128,7 +128,7 @@
 						<p class="text-sm leading-relaxed">
 							We'll securely connect to your Cloudflare account to automatically verify your domain.
 						</p>
-						<div class="mt-2 text-xs text-muted-foreground">
+						<div class="mt-2 text-xs text-muted">
 							The fastest way to get set up - no manual DNS changes needed.
 						</div>
 					</Step>
@@ -163,7 +163,7 @@
 
 						<Codeblock text={token} onCopy={copyToClipboard} isSuccess={copied} />
 
-						<div class="mt-2 text-xs text-muted-foreground">
+						<div class="mt-2 text-xs text-muted-">
 							DNS changes may take some time to update - typically a few minutes, but could be up to
 							24 hours.
 						</div>
