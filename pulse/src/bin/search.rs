@@ -6,8 +6,7 @@ use tracing::info;
 const MAX_RESULTS: usize = 10;
 
 fn get_latest_index() -> Result<PathBuf> {
-    let home = env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string());
-    let index_dir = PathBuf::from(home).join("pulse_indexes");
+    let index_dir = PathBuf::from("pulse_indexes");
     
     let latest = std::fs::read_dir(&index_dir)?
         .filter_map(Result::ok)
