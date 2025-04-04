@@ -1,25 +1,19 @@
-// needs rewrite to s3
-use anyhow::Result;
-use dotenv::dotenv;
-use sqlx::{postgres::PgPoolOptions, FromRow};
-use std::{env, time::Instant};
-use tantivy::{doc, Index};
+use anyhow::{bail, Result};
+use glob::glob;
+use serde::Deserialize;
+use std::time::{Instant, SystemTime};
+use std::{env, path::PathBuf};
 use tantivy::schema::{Schema, STORED, TEXT};
+use tantivy::{doc, Index};
+use tokio::fs::File;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tracing::info;
-use std::{path::PathBuf, time::SystemTime};
-use std::thread;
-use std::time::Duration;
 
-mod models;
-
-const CHUNK_SIZE: i32 = 5000;
-const MIN_DISK_SPACE: u64 = 10 * 1024 * 1024 * 1024; // 10GB minimum
-const MAX_RETRIES: u32 = 3;
+const MIN_DISK_SPACE: u64 = 10 * 1024 * 1024 * 1024;
 const COMMIT_THRESHOLD: usize = 1000;
 
-#[derive(Debug, FromRow)]
-struct SiteIndexed {
-    id: i32,
+#[derive(Debug, Deserialize)]
+struct JsonlEntry {
     url: String,
     title: Option<String>,
     content_text: Option<String>,
@@ -29,150 +23,154 @@ struct SiteIndexed {
 fn check_disk_space(path: &PathBuf) -> Result<()> {
     let available = fs2::available_space(path)?;
     if available < MIN_DISK_SPACE {
-        anyhow::bail!("Not enough disk space. Need at least 10GB, found {}GB", available / 1024 / 1024 / 1024);
+        anyhow::bail!(
+            "Not enough disk space. Need at least 10GB, found {}GB",
+            available / 1024 / 1024 / 1024
+        );
     }
     Ok(())
 }
- 
+
 async fn create_search_index() -> Result<Index> {
     let timestamp = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)?
         .as_secs();
-    
-    // Use user's home directory instead
-    let home = env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string());
-    let index_path = PathBuf::from(home)
-        .join("pulse_indexes")
-        .join(format!("index_{}", timestamp));
-    
+
+    let index_path = PathBuf::from("pulse_indexes").join(format!("index_{}", timestamp));
+
     check_disk_space(&index_path)?;
     std::fs::create_dir_all(&index_path)?;
     info!("Creating index at: {}", index_path.display());
-    
+
     let mut schema_builder = Schema::builder();
-    
+
     schema_builder.add_text_field("url", TEXT);
     schema_builder.add_text_field("title", TEXT | STORED);
     schema_builder.add_text_field("content", TEXT);
     schema_builder.add_text_field("meta_tags", TEXT);
-    
+
     let schema = schema_builder.build();
     let index = Index::create_in_dir(&index_path, schema)?;
     Ok(index)
 }
 
-async fn index_documents(pool: &sqlx::PgPool, index: &Index) -> Result<()> {
-    let start_time = Instant::now();
-    let schema = index.schema();
-    let mut total_processed = 0;
-    let mut last_id = 0;
-    let mut retry_count = 0;
-
-    loop {
-        let mut index_writer = match index.writer_with_num_threads(4, 4 * 1024 * 1024 * 1024) {
-            Ok(writer) => writer,
-            Err(e) => {
-                if retry_count >= MAX_RETRIES {
-                    anyhow::bail!("Failed to create index writer after {} retries: {}", MAX_RETRIES, e);
-                }
-                retry_count += 1;
-                info!("Failed to create index writer, retrying in 5s: {}", e);
-                thread::sleep(Duration::from_secs(5));
-                continue;
-            }
-        };
-
-        let sites = sqlx::query_as::<_, SiteIndexed>(
-            "SELECT id, url, title, content_text, meta_content 
-             FROM sites_indexed 
-             WHERE id > $1 
-             ORDER BY id 
-             LIMIT $2"
-        )
-        .bind(last_id)
-        .bind(CHUNK_SIZE)
-        .fetch_all(pool)
-        .await;
-
-        let sites = match sites {
-            Ok(s) => s,
-            Err(e) => {
-                info!("Query failed, retrying in 5s: {}", e);
-                thread::sleep(Duration::from_secs(5));
-                continue;
-            }
-        };
-
-        let chunk_size = sites.len();
-        if chunk_size == 0 {
-            break;
-        }
-
-        for site in sites {
-            last_id = site.id;
-            index_writer.add_document(doc!(
-                schema.get_field("url").unwrap() => site.url,
-                schema.get_field("title").unwrap() => site.title.unwrap_or_default(),
-                schema.get_field("content").unwrap() => site.content_text.unwrap_or_default(),
-                schema.get_field("meta_tags").unwrap() => site.meta_content.unwrap_or_default(),
-            ))?;
-
-            total_processed += 1;
-            if total_processed % COMMIT_THRESHOLD == 0 {
-                match index_writer.commit() {
-                    Ok(_) => {
-                        info!(total_processed, "Commit successful");
-                        let elapsed = start_time.elapsed().as_secs();
-                        let rate = total_processed as f64 / elapsed as f64;
-                        info!(
-                            last_id,
-                            total_processed,
-                            rate = rate,
-                            "Processing at {:.2} sites/second",
-                            rate
-                        );
-                    },
-                    Err(e) => {
-                        info!("Commit failed, will retry on next iteration: {}", e);
-                        break;
-                    }
-                }
-            }
+async fn check_files_exist(pattern: &str) -> Result<usize> {
+    let mut count = 0;
+    for entry in glob(pattern)? {
+        match entry {
+            Ok(_) => count += 1,
+            Err(e) => tracing::warn!("Error matching pattern: {}", e),
         }
     }
 
-    info!(total_processed, "Indexing completed");
+    if count == 0 {
+        bail!("No files found matching pattern: {}", pattern);
+    }
+
+    info!("Found {} files to process", count);
+    Ok(count)
+}
+
+async fn index_documents(analyses_pattern: &str, index: &Index) -> Result<()> {
+    let start_time = Instant::now();
+    let schema = index.schema();
+    let mut total_processed = 0;
+
+    let mut index_writer = index.writer_with_num_threads(4, 4 * 1024 * 1024 * 1024)?;
+
+    info!("Starting to process files...");
+    let mut file_count = 0;
+
+    for entry in glob(analyses_pattern)? {
+        match entry {
+            Ok(path) => {
+                file_count += 1;
+                info!("Processing file [{}]: {}", file_count, path.display());
+                let file_start_time = Instant::now();
+                let mut line_count = 0;
+
+                let file = File::open(&path).await?;
+                let reader = BufReader::new(file);
+                let mut lines = reader.lines();
+
+                while let Some(line) = lines.next_line().await? {
+                    line_count += 1;
+                    match serde_json::from_str::<JsonlEntry>(&line) {
+                        Ok(entry_data) => {
+                            index_writer.add_document(doc!(
+                                schema.get_field("url").unwrap() => entry_data.url,
+                                schema.get_field("title").unwrap() => entry_data.title.unwrap_or_default(),
+                                schema.get_field("content").unwrap() => entry_data.content_text.unwrap_or_default(),
+                                schema.get_field("meta_tags").unwrap() => entry_data.meta_content.unwrap_or_default(),
+                            ))?;
+
+                            total_processed += 1;
+
+                            if total_processed % COMMIT_THRESHOLD == 0 {
+                                if let Ok(_) = index_writer.commit() {
+                                    let elapsed = start_time.elapsed().as_secs_f64();
+                                    let rate = total_processed as f64 / elapsed;
+                                    info!(
+                                        total_processed,
+                                        rate = rate,
+                                        "Processing at {:.2} docs/second",
+                                        rate
+                                    );
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                "Failed to parse JSON line {} in file {}: {}",
+                                line_count,
+                                path.display(),
+                                e
+                            );
+                        }
+                    }
+                }
+
+                info!(
+                    "Finished file {} ({} lines) in {:.2}s",
+                    path.display(),
+                    line_count,
+                    file_start_time.elapsed().as_secs_f64()
+                );
+            }
+            Err(e) => tracing::error!("Error matching glob pattern: {}", e),
+        }
+    }
+
+    info!("Performing final commit...");
+    index_writer.commit()?;
+
+    let total_duration = start_time.elapsed();
+    info!(
+        total_processed,
+        total_files = file_count,
+        duration = format!("{:?}", total_duration),
+        "Indexing completed"
+    );
     Ok(())
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    dotenv().ok();
-    
-    // Initialize logging
-    tracing_subscriber::fmt()
-        .with_env_filter("info")
-        .init();
+    tracing_subscriber::fmt().with_env_filter("info").init();
+    info!("Starting search indexer from JSONL files");
 
-    info!("Starting search indexer");
-    
-    let database_url = env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set in .env file");
+    let analyses_pattern = "analyses/partition=*/*.jsonl";
+    info!("Looking for files matching: {}", analyses_pattern);
 
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .acquire_timeout(Duration::from_secs(30))
-        .connect(&database_url)
-        .await?;
-    
-    info!("Database connection established");
+    // Check for files before creating index
+    check_files_exist(analyses_pattern).await?;
 
     let index = create_search_index().await?;
     info!("Search index created");
-    
-    index_documents(&pool, &index).await?;
+
+    index_documents(analyses_pattern, &index).await?;
 
     info!("Search indexing completed successfully");
-    info!("You can use the latest index in the 'indexes' directory for search operations");
+    info!("You can use the latest index in the 'pulse_indexes' directory for search operations");
     Ok(())
 }
