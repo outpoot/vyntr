@@ -1,13 +1,22 @@
 use anyhow::Result;
-use std::{env, path::PathBuf, io::{self, Write}};
-use tantivy::{collector::TopDocs, query::QueryParser, Index};
+use std::{
+    io::{self, Write},
+    path::PathBuf,
+};
+use tantivy::{
+    collector::TopDocs,
+    query::QueryParser,
+    schema::{OwnedValue, Schema}, // Keep OwnedValue imported
+    Index,
+    TantivyDocument,
+};
 use tracing::info;
 
 const MAX_RESULTS: usize = 10;
 
 fn get_latest_index() -> Result<PathBuf> {
     let index_dir = PathBuf::from("pulse_indexes");
-    
+
     let latest = std::fs::read_dir(&index_dir)?
         .filter_map(Result::ok)
         .filter(|entry| entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false))
@@ -20,9 +29,7 @@ fn get_latest_index() -> Result<PathBuf> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter("info")
-        .init();
+    tracing_subscriber::fmt().with_env_filter("info").init();
 
     let index_path = get_latest_index()?;
     info!("Using index at: {}", index_path.display());
@@ -31,7 +38,7 @@ async fn main() -> Result<()> {
     let reader = index.reader()?;
     let searcher = reader.searcher();
 
-    let schema = index.schema();
+    let schema: Schema = index.schema();
     let title_field = schema.get_field("title").unwrap();
     let url_field = schema.get_field("url").unwrap();
     let content_field = schema.get_field("content").unwrap();
@@ -57,18 +64,36 @@ async fn main() -> Result<()> {
 
         let query = query_parser.parse_query(query_str)?;
         let top_docs = searcher.search(&query, &TopDocs::with_limit(MAX_RESULTS))?;
-        
+
         println!("\nSearch results for: {}", query_str);
         println!("{}", "─".repeat(50));
 
         for (score, doc_address) in top_docs {
-            let retrieved_doc = searcher.doc(doc_address)?;
-            let empty_value = tantivy::schema::Value::Str("".to_string());
+            let retrieved_doc: TantivyDocument = searcher.doc(doc_address)?;
+            let owned_doc = retrieved_doc.to_owned();
+
+            // Use map_or as suggested by the compiler
+            let title_str = owned_doc
+                .get_first(title_field) // Option<OwnedValue>
+                .and_then(|owned_val| match owned_val {
+                    OwnedValue::Str(s) => Some(s), // Returns Option<String>
+                    _ => None,
+                })
+                .map_or("", |s| &s); // If Some(s), return &s (&str). If None, return "" (&str).
+
+            let url_str = owned_doc
+                .get_first(url_field) // Option<OwnedValue>
+                .and_then(|owned_val| match owned_val {
+                    OwnedValue::Str(s) => Some(s), // Returns Option<String>
+                    _ => None,
+                })
+                .map_or("", |s| &s); // If Some(s), return &s (&str). If None, return "" (&str).
+
             println!(
                 "Score: {:.2}\nTitle: {}\nURL: {}\n{}",
                 score,
-                retrieved_doc.get_first(title_field).map(|v| v.as_text().unwrap_or_default()).unwrap_or_default(),
-                retrieved_doc.get_first(url_field).unwrap_or_else(|| &empty_value).as_text().unwrap_or_default(),
+                title_str,
+                url_str,
                 "─".repeat(50)
             );
         }
