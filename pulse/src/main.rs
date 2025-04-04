@@ -1,15 +1,14 @@
 use anyhow::{bail, Result};
 use glob::glob;
 use serde::Deserialize;
+use std::path::PathBuf;
 use std::time::{Instant, SystemTime};
-use std::{env, path::PathBuf};
 use tantivy::schema::{Schema, STORED, TEXT};
 use tantivy::{doc, Index};
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tracing::info;
 
-const MIN_DISK_SPACE: u64 = 10 * 1024 * 1024 * 1024;
 const COMMIT_THRESHOLD: usize = 1000;
 
 #[derive(Debug, Deserialize)]
@@ -20,17 +19,6 @@ struct JsonlEntry {
     meta_content: Option<String>,
 }
 
-fn check_disk_space(path: &PathBuf) -> Result<()> {
-    let available = fs2::available_space(path)?;
-    if available < MIN_DISK_SPACE {
-        anyhow::bail!(
-            "Not enough disk space. Need at least 10GB, found {}GB",
-            available / 1024 / 1024 / 1024
-        );
-    }
-    Ok(())
-}
-
 async fn create_search_index() -> Result<Index> {
     let timestamp = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)?
@@ -38,7 +26,6 @@ async fn create_search_index() -> Result<Index> {
 
     let index_path = PathBuf::from("pulse_indexes").join(format!("index_{}", timestamp));
 
-    check_disk_space(&index_path)?;
     std::fs::create_dir_all(&index_path)?;
     info!("Creating index at: {}", index_path.display());
 
