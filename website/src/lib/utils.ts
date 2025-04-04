@@ -33,3 +33,10 @@ export function formatAmount(amount: number) {
 			: 2
 	});
 }
+
+export function formatCompactNumber(num: number): string {
+	if (num < 1000) return num.toString();
+
+	const formatter = Intl.NumberFormat('en', { notation: 'compact' });
+	return formatter.format(num);
+}

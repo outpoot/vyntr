@@ -5,26 +5,33 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Select from '$lib/components/ui/select';
 	import { toast } from 'svelte-sonner';
-	import {
-		Search,
-		ArrowUpRight,
-		Star,
-		ThumbsUp,
-		ThumbsDown,
-		Link2,
-		Globe,
-		Check
-	} from 'lucide-svelte';
+	import { Search, ArrowUpRight, Star, Link2, Globe, Check } from 'lucide-svelte';
 	import { scale } from 'svelte/transition';
+	import { quintOut } from 'svelte/easing';
+	import VoteButton from '$lib/components/self/VoteButton.svelte';
 
-	let { data } = $props();
+	type Site = {
+		domain: string;
+		description?: string;
+		tags?: string[];
+		category: string;
+		isFeatured?: boolean;
+		visits?: number;
+		upvotes: number;
+		downvotes: number;
+		userVote?: 'up' | 'down' | null; // added for state
+	};
+
+	let { data } = $props<{ data: { sites: Site[] } }>();
+
+	let sites = $state<Site[]>(data.sites.map((site: Site) => ({ ...site, userVote: null })));
 
 	let searchQuery = $state('');
 	let selectedCategory = $state('all');
 	let copiedDomain = $state('');
 
 	const filteredSites = $derived(
-		data.sites.filter((site: any) => {
+		sites.filter((site) => {
 			const terms = searchQuery.toLowerCase().split(' ').filter(Boolean);
 			const matchesSearch = terms.every(
 				(term) =>
@@ -39,11 +46,11 @@
 	);
 
 	function getFaviconUrl(domain: string): string {
-		// PLACEHOLDER TODO
 		try {
 			const url = new URL(domain.startsWith('http') ? domain : `https://${domain}`);
 			return `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=32`;
 		} catch (e) {
+			console.error(`Invalid URL for favicon: ${domain}`, e);
 			return '';
 		}
 	}
@@ -62,6 +69,50 @@
 		} catch (e) {
 			return domain.replace(/^https?:\/\//, '').replace(/^www\./, '');
 		}
+	}
+
+	// --- Placeholder Voting Logic ---
+	function handleVote(siteDomain: string, voteType: 'up' | 'down') {
+		sites = sites.map((site) => {
+			if (site.domain === siteDomain) {
+				const currentVote = site.userVote;
+				let newUpvotes = site.upvotes;
+				let newDownvotes = site.downvotes;
+				let newUserVote: Site['userVote'] = null;
+
+				if (voteType === 'up') {
+					if (currentVote === 'up') {
+						// Undo upvote
+						newUpvotes--;
+						newUserVote = null;
+					} else {
+						// Apply upvote
+						newUpvotes++;
+						if (currentVote === 'down') newDownvotes--; // Remove downvote if exists
+						newUserVote = 'up';
+					}
+				} else {
+					// voteType === 'down'
+					if (currentVote === 'down') {
+						// Undo downvote
+						newDownvotes--;
+						newUserVote = null;
+					} else {
+						// Apply downvote
+						newDownvotes++;
+						if (currentVote === 'up') newUpvotes--; // Remove upvote if exists
+						newUserVote = 'down';
+					}
+				}
+				return {
+					...site,
+					upvotes: newUpvotes,
+					downvotes: newDownvotes,
+					userVote: newUserVote
+				};
+			}
+			return site;
+		});
 	}
 </script>
 
@@ -104,13 +155,16 @@
 			{#each filteredSites as site (site.domain)}
 				{@const isCopied = copiedDomain === site.domain}
 				{@const faviconUrl = getFaviconUrl(site.domain)}
+				{@const isUpvoted = site.userVote === 'up'}
+				{@const isDownvoted = site.userVote === 'down'}
+
 				<div
 					class="group relative flex flex-col rounded-xl border bg-card p-4 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md transition-shadow hover:shadow-lg"
 				>
 					<div class="flex flex-1 flex-col gap-3">
 						<div class="flex items-start justify-between gap-2">
 							<a
-								href={site.domain}
+								href={site.domain.startsWith('http') ? site.domain : `https://${site.domain}`}
 								target="_blank"
 								rel="noopener noreferrer"
 								class="group/link flex min-w-0 items-center gap-2"
@@ -125,7 +179,6 @@
 											class="h-full w-full object-contain"
 											loading="lazy"
 										/>
-										<Globe class="hidden h-4 w-4 text-muted" aria-hidden="true" />
 									{:else}
 										<Globe class="h-4 w-4 text-muted" aria-hidden="true" />
 									{/if}
@@ -144,7 +197,7 @@
 							{/if}
 						</div>
 
-						<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+						<div class="flex flex-wrap items-center gap-2 text-xs text-muted">
 							<div class="flex items-center gap-1">
 								<Globe class="h-3 w-3" />
 								<span>{site.visits?.toLocaleString() ?? 'N/A'}</span>
@@ -152,9 +205,11 @@
 							<Badge variant="secondary" class="text-xs font-normal capitalize">
 								{WEBSITE_CATEGORIES.find((c) => c.value === site.category)?.label || site.category}
 							</Badge>
-							{#each site.tags?.slice(0, 2) || [] as tag}
-								<Badge variant="outline" class="text-xs font-normal">{tag}</Badge>
-							{/each}
+							<div class="flex gap-1">
+								{#each site.tags?.slice(0, 2) || [] as tag}
+									<Badge variant="outline" class="text-xs font-normal">{tag}</Badge>
+								{/each}
+							</div>
 						</div>
 
 						<p class="line-clamp-2 flex-1 text-sm text-muted">
@@ -172,39 +227,29 @@
 							disabled={isCopied}
 						>
 							{#if isCopied}
-								<div in:scale|fade={{ duration: 150 }}>
+								<div in:scale|fade={{ duration: 150, easing: quintOut }}>
 									<Check class="h-4 w-4" />
 								</div>
 							{:else}
-								<div in:scale|fade={{ duration: 150 }}>
+								<div in:scale|fade={{ duration: 150, easing: quintOut }}>
 									<Link2 class="h-4 w-4" />
 								</div>
 							{/if}
 						</Button>
 
-						<Button
-							variant="ghost"
-							size="sm"
-							class="group/button relative isolate h-8 px-2 transition-colors hover:bg-blue-600/15 hover:text-blue-600"
-						>
-							<ThumbsUp
-								class="inline-flex h-4 w-4 items-center justify-center transition-colors group-hover/button:text-blue-600"
-							/>
+						<VoteButton
+							type="up"
+							count={site.upvotes}
+							isActive={isUpvoted}
+							handleVote={() => handleVote(site.domain, 'up')}
+						/>
 
-							{site.upvotes ?? 0}
-						</Button>
-
-						<Button
-							variant="ghost"
-							size="sm"
-							class="group/button relative isolate h-8 px-2 transition-colors hover:bg-red-600/15 hover:text-destructive"
-						>
-							<ThumbsDown
-								class="inline-flex h-4 w-4 items-center justify-center transition-colors group-hover/button:text-destructive"
-							/>
-
-							{site.downvotes ?? 0}
-						</Button>
+						<VoteButton
+							type="down"
+							count={site.downvotes}
+							isActive={isDownvoted}
+							handleVote={() => handleVote(site.domain, 'down')}
+						/>
 					</div>
 				</div>
 			{/each}
