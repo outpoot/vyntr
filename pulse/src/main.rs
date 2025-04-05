@@ -1,6 +1,6 @@
 use anyhow::{bail, Result};
 use glob::glob;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::{Instant, SystemTime};
 use tantivy::schema::{Schema, STORED, TEXT};
@@ -19,6 +19,57 @@ struct JsonlEntry {
     meta_content: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+struct ModerationRequest {
+    input: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct ModerationResponse {
+    results: Vec<ModerationResult>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct ModerationResult {
+    flagged: bool,
+    categories: ModerationCategories,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct ModerationCategories {
+    sexual: bool,
+    hate: bool,
+    harassment: bool,
+    #[serde(rename = "self-harm")]
+    self_harm: bool,
+    #[serde(rename = "sexual/minors")]
+    sexual_minors: bool,
+    violence: bool,
+}
+
+async fn check_content_moderation(content: &str) -> Result<ModerationResult> {
+    let api_key =
+        std::env::var("OPENAI_API_KEY").map_err(|_| anyhow::anyhow!("OPENAI_API_KEY not set"))?;
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post("https://api.openai.com/v1/moderations")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .json(&ModerationRequest {
+            input: content.to_string(),
+        })
+        .send()
+        .await?
+        .json::<ModerationResponse>()
+        .await?;
+
+    response
+        .results
+        .first()
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("No moderation results"))
+}
+
 async fn create_search_index() -> Result<Index> {
     let timestamp = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)?
@@ -35,6 +86,11 @@ async fn create_search_index() -> Result<Index> {
     schema_builder.add_text_field("title", TEXT | STORED);
     schema_builder.add_text_field("content", TEXT);
     schema_builder.add_text_field("meta_tags", TEXT | STORED);
+    schema_builder.add_bool_field("nsfw", STORED);
+    schema_builder.add_bool_field("harassment", STORED);
+    schema_builder.add_bool_field("hate", STORED);
+    schema_builder.add_bool_field("violence", STORED);
+    schema_builder.add_bool_field("self_harm", STORED);
 
     let schema = schema_builder.build();
     let index = Index::create_in_dir(&index_path, schema)?;
@@ -84,11 +140,43 @@ async fn index_documents(analyses_pattern: &str, index: &Index) -> Result<()> {
                     line_count += 1;
                     match serde_json::from_str::<JsonlEntry>(&line) {
                         Ok(entry_data) => {
+                            let content = entry_data.content_text.as_deref().unwrap_or_default();
+                            let title = entry_data.title.as_deref().unwrap_or_default();
+
+                            let combined_content = format!(
+                                "{}\n{}\n{}",
+                                title,
+                                content,
+                                entry_data.meta_content.as_deref().unwrap_or_default()
+                            );
+
+                            let result = check_content_moderation(&combined_content)
+                                .await
+                                .unwrap_or_else(|e| {
+                                    tracing::warn!("Moderation check failed: {}", e);
+                                    ModerationResult {
+                                        flagged: false,
+                                        categories: ModerationCategories {
+                                            sexual: false,
+                                            hate: false,
+                                            harassment: false,
+                                            self_harm: false,
+                                            sexual_minors: false,
+                                            violence: false,
+                                        },
+                                    }
+                                });
+
                             index_writer.add_document(doc!(
                                 schema.get_field("url").unwrap() => entry_data.url,
                                 schema.get_field("title").unwrap() => entry_data.title.unwrap_or_default(),
-                                schema.get_field("content").unwrap() => entry_data.content_text.unwrap_or_default(),
+                                schema.get_field("content").unwrap() => content,
                                 schema.get_field("meta_tags").unwrap() => entry_data.meta_content.unwrap_or_default(),
+                                schema.get_field("nsfw").unwrap() => result.flagged || result.categories.sexual || result.categories.sexual_minors,
+                                schema.get_field("harassment").unwrap() => result.categories.harassment,
+                                schema.get_field("hate").unwrap() => result.categories.hate,
+                                schema.get_field("violence").unwrap() => result.categories.violence,
+                                schema.get_field("self_harm").unwrap() => result.categories.self_harm
                             ))?;
 
                             total_processed += 1;
@@ -161,3 +249,17 @@ async fn main() -> Result<()> {
     info!("You can use the latest index in the 'pulse_indexes' directory for search operations");
     Ok(())
 }
+
+// THE CONTENT BELOW CONTAINS NSFW KEYWORDS
+// DISCRETION ADVISED
+// ====================================================
+// ====================================================
+// ====================================================
+// ====================================================
+// ====================================================
+// ====================================================
+// ====================================================
+// ====================================================
+// ====================================================
+// ====================================================
+// ====================================================

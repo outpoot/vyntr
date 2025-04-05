@@ -5,7 +5,7 @@ use std::{path::PathBuf, sync::Arc};
 use tantivy::{
     collector::TopDocs,
     query::QueryParser,
-    schema::{OwnedValue, Schema},
+    schema::{OwnedValue, Schema, Value},
     Index, IndexReader, TantivyDocument,
 };
 use tower_http::cors::CorsLayer;
@@ -19,11 +19,21 @@ struct SearchParams {
 }
 
 #[derive(Debug, Serialize)]
+struct ContentFlags {
+    nsfw: bool,
+    harassment: bool,
+    hate: bool,
+    violence: bool,
+    self_harm: bool,
+}
+
+#[derive(Debug, Serialize)]
 struct SearchResult {
     score: f32,
     title: String,
     url: String,
-    meta_description: String, // Add this field
+    meta_description: String,
+    content_flags: ContentFlags,
 }
 
 #[derive(Debug, Serialize)]
@@ -70,6 +80,11 @@ async fn search_handler(
     let title_field = state.schema.get_field("title").unwrap();
     let url_field = state.schema.get_field("url").unwrap();
     let meta_field = state.schema.get_field("meta_tags").unwrap();
+    let nsfw_field = state.schema.get_field("nsfw").unwrap();
+    let harassment_field = state.schema.get_field("harassment").unwrap();
+    let hate_field = state.schema.get_field("hate").unwrap();
+    let violence_field = state.schema.get_field("violence").unwrap();
+    let self_harm_field = state.schema.get_field("self_harm").unwrap();
 
     let results: Vec<SearchResult> = top_docs
         .iter()
@@ -102,6 +117,28 @@ async fn search_handler(
                                 _ => None,
                             })
                             .unwrap_or_default(),
+                        content_flags: ContentFlags {
+                            nsfw: doc
+                                .get_first(nsfw_field)
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or_default(),
+                            harassment: doc
+                                .get_first(harassment_field)
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or_default(),
+                            hate: doc
+                                .get_first(hate_field)
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or_default(),
+                            violence: doc
+                                .get_first(violence_field)
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or_default(),
+                            self_harm: doc
+                                .get_first(self_harm_field)
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or_default(),
+                        },
                     }
                 })
         })
