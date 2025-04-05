@@ -48,8 +48,8 @@ struct ModerationCategories {
 }
 
 async fn check_content_moderation(content: &str) -> Result<ModerationResult> {
-    let api_key =
-        std::env::var("OPENAI_API_KEY").map_err(|_| anyhow::anyhow!("OPENAI_API_KEY not set"))?;
+    let api_key = std::env::var("OPENAI_API_KEY")
+        .map_err(|_| anyhow::anyhow!("OPENAI_API_KEY not set"))?;
 
     let client = reqwest::Client::new();
     let response = client
@@ -59,15 +59,28 @@ async fn check_content_moderation(content: &str) -> Result<ModerationResult> {
             input: content.to_string(),
         })
         .send()
-        .await?
-        .json::<ModerationResponse>()
         .await?;
 
-    response
+    // Log the status code and headers
+    info!(
+        "OpenAI API response status: {}, headers: {:?}",
+        response.status(),
+        response.headers()
+    );
+
+    // Get the response text first
+    let response_text = response.text().await?;
+    info!("OpenAI API response body: {}", response_text);
+
+    // Then try to parse it
+    let moderation: ModerationResponse = serde_json::from_str(&response_text)
+        .map_err(|e| anyhow::anyhow!("Failed to parse moderation response: {}. Response: {}", e, response_text))?;
+
+    moderation
         .results
         .first()
         .cloned()
-        .ok_or_else(|| anyhow::anyhow!("No moderation results"))
+        .ok_or_else(|| anyhow::anyhow!("No moderation results in response: {}", response_text))
 }
 
 async fn create_search_index() -> Result<Index> {
@@ -153,7 +166,7 @@ async fn index_documents(analyses_pattern: &str, index: &Index) -> Result<()> {
                             let result = check_content_moderation(&combined_content)
                                 .await
                                 .unwrap_or_else(|e| {
-                                    tracing::warn!("Moderation check failed: {}", e);
+                                    tracing::warn!("Moderation check failed: {}. Content: {}", e, combined_content);
                                     ModerationResult {
                                         flagged: false,
                                         categories: ModerationCategories {
