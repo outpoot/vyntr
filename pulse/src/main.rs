@@ -34,7 +34,7 @@ async fn create_search_index() -> Result<Index> {
     schema_builder.add_text_field("url", TEXT | STORED);
     schema_builder.add_text_field("title", TEXT | STORED);
     schema_builder.add_text_field("content", TEXT);
-    schema_builder.add_text_field("meta_tags", TEXT);
+    schema_builder.add_text_field("meta_tags", TEXT | STORED);
 
     let schema = schema_builder.build();
     let index = Index::create_in_dir(&index_path, schema)?;

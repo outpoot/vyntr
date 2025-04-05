@@ -23,6 +23,7 @@ struct SearchResult {
     score: f32,
     title: String,
     url: String,
+    meta_description: String, // Add this field
 }
 
 #[derive(Debug, Serialize)]
@@ -68,6 +69,7 @@ async fn search_handler(
 
     let title_field = state.schema.get_field("title").unwrap();
     let url_field = state.schema.get_field("url").unwrap();
+    let meta_field = state.schema.get_field("meta_tags").unwrap();
 
     let results: Vec<SearchResult> = top_docs
         .iter()
@@ -88,6 +90,13 @@ async fn search_handler(
                             .unwrap_or_default(),
                         url: doc
                             .get_first(url_field)
+                            .and_then(|v| match v {
+                                OwnedValue::Str(s) => Some(s.clone()),
+                                _ => None,
+                            })
+                            .unwrap_or_default(),
+                        meta_description: doc
+                            .get_first(meta_field)
                             .and_then(|v| match v {
                                 OwnedValue::Str(s) => Some(s.clone()),
                                 _ => None,

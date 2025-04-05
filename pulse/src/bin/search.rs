@@ -6,9 +6,8 @@ use std::{
 use tantivy::{
     collector::TopDocs,
     query::QueryParser,
-    schema::{OwnedValue, Schema}, // Keep OwnedValue imported
-    Index,
-    TantivyDocument,
+    schema::{OwnedValue, Schema},
+    Index, TantivyDocument,
 };
 use tracing::info;
 
@@ -74,26 +73,33 @@ async fn main() -> Result<()> {
 
             // Use map_or as suggested by the compiler
             let title_str = owned_doc
-                .get_first(title_field) // Option<OwnedValue>
+                .get_first(title_field)
                 .and_then(|owned_val| match owned_val {
-                    OwnedValue::Str(s) => Some(s), // Returns Option<String>
+                    OwnedValue::Str(s) => Some(s),
                     _ => None,
                 })
-                .map_or("", |s| &s); // If Some(s), return &s (&str). If None, return "" (&str).
+                .map_or("", |s| &s);
 
             let url_str = owned_doc
-                .get_first(url_field) // Option<OwnedValue>
+                .get_first(url_field)
                 .and_then(|owned_val| match owned_val {
-                    OwnedValue::Str(s) => Some(s), // Returns Option<String>
+                    OwnedValue::Str(s) => Some(s),
                     _ => None,
                 })
-                .map_or("", |s| &s); // If Some(s), return &s (&str). If None, return "" (&str).
+                .map_or("", |s| &s);
 
             println!(
-                "Score: {:.2}\nTitle: {}\nURL: {}\n{}",
+                "Score: {:.2}\nTitle: {}\nURL: {}\nDescription: {}\n{}",
                 score,
                 title_str,
                 url_str,
+                owned_doc
+                    .get_first(meta_field)
+                    .and_then(|v| match v {
+                        OwnedValue::Str(s) => Some(s),
+                        _ => None,
+                    })
+                    .map_or("", |s| &s),
                 "─".repeat(50)
             );
         }
