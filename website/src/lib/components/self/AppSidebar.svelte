@@ -10,6 +10,7 @@
 	import SignIn from './icon/SignIn.svelte';
 	import Settings from './icon/Settings.svelte';
 	import { Sun, Moon, Upload } from 'lucide-svelte';
+	import Key from './icon/Key.svelte';
 
 	import { activeSidebarItem } from '$lib/stores/sidebar';
 	import { scale } from 'svelte/transition';
@@ -26,6 +27,7 @@
 		{ id: 'registry', label: 'Registry', icon: Explore, href: '/registry' },
 		{ id: 'chatbot', label: 'Chatbot', icon: Wand, href: '/chatbot' },
 		{ id: 'premium', label: 'Premium', icon: Crown, href: '/premium' },
+		{ id: 'api', label: 'API', icon: Key, href: '/api' },
 		{
 			id: 'account',
 			label: $USER_DATA ? 'Profile' : 'Sign In',

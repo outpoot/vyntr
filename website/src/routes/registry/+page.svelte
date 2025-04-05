@@ -24,7 +24,7 @@
 
 	let { data } = $props<{ data: { sites: Site[] } }>();
 
-	let sites = $state<Site[]>(data.sites.map((site: Site) => ({ ...site, userVote: null })));
+	let sites = $state<Site[]>(data.sites);
 
 	let searchQuery = $state('');
 	let selectedCategory = $state('all');
@@ -72,47 +72,30 @@
 	}
 
 	// --- Placeholder Voting Logic ---
-	function handleVote(siteDomain: string, voteType: 'up' | 'down') {
-		sites = sites.map((site) => {
-			if (site.domain === siteDomain) {
-				const currentVote = site.userVote;
-				let newUpvotes = site.upvotes;
-				let newDownvotes = site.downvotes;
-				let newUserVote: Site['userVote'] = null;
+	async function handleVote(siteDomain: string, voteType: 'up' | 'down') {
+		const domain = getCleanDomain(siteDomain);
+		const site = sites.find(s => s.domain === siteDomain);
+		if (!site) return;
 
-				if (voteType === 'up') {
-					if (currentVote === 'up') {
-						// Undo upvote
-						newUpvotes--;
-						newUserVote = null;
-					} else {
-						// Apply upvote
-						newUpvotes++;
-						if (currentVote === 'down') newDownvotes--; // Remove downvote if exists
-						newUserVote = 'up';
-					}
-				} else {
-					// voteType === 'down'
-					if (currentVote === 'down') {
-						// Undo downvote
-						newDownvotes--;
-						newUserVote = null;
-					} else {
-						// Apply downvote
-						newDownvotes++;
-						if (currentVote === 'up') newUpvotes--; // Remove upvote if exists
-						newUserVote = 'down';
-					}
-				}
-				return {
-					...site,
-					upvotes: newUpvotes,
-					downvotes: newDownvotes,
-					userVote: newUserVote
-				};
-			}
-			return site;
-		});
+		try {
+			const response = await fetch(`/api/domains/${domain}/vote`, {
+				method: 'POST',
+				body: JSON.stringify({
+					type: site.userVote === voteType ? 'none' : voteType
+				})
+			});
+
+			if (!response.ok) throw new Error('Failed to vote');
+			
+			const result = await response.json();
+			sites = sites.map(s => 
+				s.domain === siteDomain 
+					? { ...s, upvotes: result.upvotes, downvotes: result.downvotes, userVote: site.userVote === voteType ? null : voteType }
+					: s
+			);
+		} catch (err) {
+			toast.error('Failed to vote. Please try again.');
+		}
 	}
 </script>
 

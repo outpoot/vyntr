@@ -55,7 +55,7 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		gap: 0.5rem;
+		gap: 0.4rem;
 		height: 2rem;
 		padding: 0 0.5rem;
 		border-radius: 0.375rem;

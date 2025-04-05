@@ -36,6 +36,41 @@
       "when": 1743692994782,
       "tag": "0004_heavy_centennial",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1743785801777,
+      "tag": "0005_silly_hellion",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1743855782289,
+      "tag": "0006_supreme_echo",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1743855893715,
+      "tag": "0007_brief_stryfe",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1743864509586,
+      "tag": "0008_serious_gertrude_yorkes",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1743864939591,
+      "tag": "0009_loose_blindfold",
+      "breakpoints": true
     }
   ]
 }

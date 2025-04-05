@@ -1,6 +1,7 @@
 import { db } from '$lib/server/db';
-import { website } from '$lib/server/schema';
+import { website, websiteVote } from '$lib/server/schema';
 import { eq } from 'drizzle-orm';
+import { auth } from '$lib/auth';
 import type { PageServerLoad } from './$types';
 
 function calculateScore(site: any) {
@@ -12,22 +13,33 @@ function calculateScore(site: any) {
     const decay = Math.pow(age + 2, -0.5); // Decay older posts slowly
 
     return (
-        ((votes * votesWeight) + (site.monthlyVisits * visitsWeight)) * 
-        featuredBonus * 
+        ((votes * votesWeight) + (site.monthlyVisits * visitsWeight)) *
+        featuredBonus *
         decay
     );
 }
 
-export const load: PageServerLoad = async () => {
+export const load: PageServerLoad = async (event) => {
+    const session = await auth.api.getSession({
+        headers: event.request.headers
+    });
     const sites = await db.query.website.findMany({
-        where: eq(website.status, 'public'),
-        with: {
-            user: true
-        }
+        where: eq(website.status, 'public')
     });
 
-    // Sort by engagement score
+    let votes: any[] = [];
+    if (session) {
+        votes = await db.query.websiteVote.findMany({
+            where: eq(websiteVote.userId, session.user.id)
+        });
+    }
+
     const sortedSites = sites.sort((a, b) => calculateScore(b) - calculateScore(a));
 
-    return { sites: sortedSites };
+    return {
+        sites: sortedSites.map(site => ({
+            ...site,
+            userVote: votes.find(v => v.website === site.domain)?.type || null
+        }))
+    };
 };

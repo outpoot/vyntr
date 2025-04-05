@@ -40,3 +40,23 @@ export function formatCompactNumber(num: number): string {
 	const formatter = Intl.NumberFormat('en', { notation: 'compact' });
 	return formatter.format(num);
 }
+
+export function formatDateFriendly(dateStr: number): string {
+	const date = new Date(dateStr);
+	const today = new Date();
+	const yesterday = new Date(today);
+	yesterday.setDate(yesterday.getDate() - 1);
+
+	if (date.toDateString() === today.toDateString()) {
+		return 'Today';
+	}
+	if (date.toDateString() === yesterday.toDateString()) {
+		return 'Yesterday';
+	}
+
+	return date.toLocaleDateString('en-US', {
+		month: 'long',
+		day: 'numeric',
+		year: 'numeric'
+	});
+}

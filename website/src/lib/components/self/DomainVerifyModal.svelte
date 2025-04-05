@@ -17,7 +17,6 @@
 
 	// State
 	let provider = $state('any');
-	let copied = $state(false);
 	let verifying = $state(false);
 	let verified = $state(false);
 	let nextRetryTime = $state<number | null>(null);
@@ -34,12 +33,6 @@
 	const triggerContent = $derived(
 		domainProviders.find((p) => p.value === provider)?.label ?? 'Select provider'
 	);
-
-	function copyToClipboard() {
-		navigator.clipboard.writeText(token);
-		copied = true;
-		setTimeout(() => (copied = false), 2000);
-	}
 
 	function updateRemainingTime() {
 		if (!nextRetryTime) return;
@@ -160,7 +153,7 @@
 							>:
 						</p>
 
-						<Codeblock text={token} onCopy={copyToClipboard} isSuccess={copied} />
+						<Codeblock text={token} />
 
 						<div class="mt-2 text-xs text-muted-">
 							DNS changes may take some time to update - typically a few minutes, but could be up to

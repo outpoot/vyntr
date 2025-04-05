@@ -11,11 +11,13 @@
 </script>
 
 <div
-	class="inline-flex items-start gap-2 rounded-md border bg-background p-3 text-sm"
-	class:max-w-xl={maxWidth}
+	class="items-start gap-2 rounded-md border bg-card p-3 text-sm"
+	class:flex={maxWidth}
+	class:w-full={maxWidth}
+	class:inline-flex={!maxWidth}
 	class:border-destructive={type === 'error'}
 	class:border-green-200={type === 'success'}
-	class:border-yellow-200={type === 'warning'}
+	class:border-yellow-500={type === 'warning'}
 >
 	{#if type === 'error'}
 		<AlertCircle class="mt-0.5 h-4 w-4 flex-shrink-0 text-destructive" />
