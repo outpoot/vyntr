@@ -1,6 +1,7 @@
 use anyhow::{bail, Result};
 use glob::glob;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::{Instant, SystemTime};
 use tantivy::schema::{Schema, STORED, TEXT};
@@ -17,70 +18,6 @@ struct JsonlEntry {
     title: Option<String>,
     content_text: Option<String>,
     meta_content: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct ModerationRequest {
-    input: String,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-struct ModerationResponse {
-    results: Vec<ModerationResult>,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-struct ModerationResult {
-    flagged: bool,
-    categories: ModerationCategories,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-struct ModerationCategories {
-    sexual: bool,
-    hate: bool,
-    harassment: bool,
-    #[serde(rename = "self-harm")]
-    self_harm: bool,
-    #[serde(rename = "sexual/minors")]
-    sexual_minors: bool,
-    violence: bool,
-}
-
-async fn check_content_moderation(content: &str) -> Result<ModerationResult> {
-    let api_key = std::env::var("OPENAI_API_KEY")
-        .map_err(|_| anyhow::anyhow!("OPENAI_API_KEY not set"))?;
-
-    let client = reqwest::Client::new();
-    let response = client
-        .post("https://api.openai.com/v1/moderations")
-        .header("Authorization", format!("Bearer {}", api_key))
-        .json(&ModerationRequest {
-            input: content.to_string(),
-        })
-        .send()
-        .await?;
-
-    // Log the status code and headers
-    info!(
-        "OpenAI API response status: {}, headers: {:?}",
-        response.status(),
-        response.headers()
-    );
-
-    // Get the response text first
-    let response_text = response.text().await?;
-    info!("OpenAI API response body: {}", response_text);
-
-    // Then try to parse it
-    let moderation: ModerationResponse = serde_json::from_str(&response_text)
-        .map_err(|e| anyhow::anyhow!("Failed to parse moderation response: {}. Response: {}", e, response_text))?;
-
-    moderation
-        .results
-        .first()
-        .cloned()
-        .ok_or_else(|| anyhow::anyhow!("No moderation results in response: {}", response_text))
 }
 
 async fn create_search_index() -> Result<Index> {
@@ -100,10 +37,6 @@ async fn create_search_index() -> Result<Index> {
     schema_builder.add_text_field("content", TEXT);
     schema_builder.add_text_field("meta_tags", TEXT | STORED);
     schema_builder.add_bool_field("nsfw", STORED);
-    schema_builder.add_bool_field("harassment", STORED);
-    schema_builder.add_bool_field("hate", STORED);
-    schema_builder.add_bool_field("violence", STORED);
-    schema_builder.add_bool_field("self_harm", STORED);
 
     let schema = schema_builder.build();
     let index = Index::create_in_dir(&index_path, schema)?;
@@ -127,7 +60,11 @@ async fn check_files_exist(pattern: &str) -> Result<usize> {
     Ok(count)
 }
 
-async fn index_documents(analyses_pattern: &str, index: &Index) -> Result<()> {
+async fn index_documents(
+    analyses_pattern: &str,
+    index: &Index,
+    nsfw_domains: &HashSet<String>,
+) -> Result<()> {
     let start_time = Instant::now();
     let schema = index.schema();
     let mut total_processed = 0;
@@ -155,41 +92,20 @@ async fn index_documents(analyses_pattern: &str, index: &Index) -> Result<()> {
                         Ok(entry_data) => {
                             let content = entry_data.content_text.as_deref().unwrap_or_default();
                             let title = entry_data.title.as_deref().unwrap_or_default();
+                            let meta = entry_data.meta_content.as_deref().unwrap_or_default();
 
-                            let combined_content = format!(
-                                "{}\n{}\n{}",
-                                title,
-                                content,
-                                entry_data.meta_content.as_deref().unwrap_or_default()
-                            );
-
-                            let result = check_content_moderation(&combined_content)
-                                .await
-                                .unwrap_or_else(|e| {
-                                    tracing::warn!("Moderation check failed: {}. Content: {}", e, combined_content);
-                                    ModerationResult {
-                                        flagged: false,
-                                        categories: ModerationCategories {
-                                            sexual: false,
-                                            hate: false,
-                                            harassment: false,
-                                            self_harm: false,
-                                            sexual_minors: false,
-                                            violence: false,
-                                        },
-                                    }
-                                });
+                            let is_nsfw_content = is_nsfw(content, nsfw_domains)
+                                || is_nsfw(title, nsfw_domains)
+                                || is_nsfw(meta, nsfw_domains)
+                                || is_nsfw(&entry_data.url, nsfw_domains)
+                                || is_nsfw_domain(&entry_data.url, nsfw_domains);
 
                             index_writer.add_document(doc!(
                                 schema.get_field("url").unwrap() => entry_data.url,
                                 schema.get_field("title").unwrap() => entry_data.title.unwrap_or_default(),
                                 schema.get_field("content").unwrap() => content,
                                 schema.get_field("meta_tags").unwrap() => entry_data.meta_content.unwrap_or_default(),
-                                schema.get_field("nsfw").unwrap() => result.flagged || result.categories.sexual || result.categories.sexual_minors,
-                                schema.get_field("harassment").unwrap() => result.categories.harassment,
-                                schema.get_field("hate").unwrap() => result.categories.hate,
-                                schema.get_field("violence").unwrap() => result.categories.violence,
-                                schema.get_field("self_harm").unwrap() => result.categories.self_harm
+                                schema.get_field("nsfw").unwrap() => is_nsfw_content
                             ))?;
 
                             total_processed += 1;
@@ -253,10 +169,15 @@ async fn main() -> Result<()> {
     // Check for files before creating index
     check_files_exist(analyses_pattern).await?;
 
+    let nsfw_domains = load_nsfw_domains().unwrap_or_else(|_| {
+        info!("Could not load NSFW domains list, continuing without it");
+        HashSet::new()
+    });
+
     let index = create_search_index().await?;
     info!("Search index created");
 
-    index_documents(analyses_pattern, &index).await?;
+    index_documents(analyses_pattern, &index, &nsfw_domains).await?;
 
     info!("Search indexing completed successfully");
     info!("You can use the latest index in the 'pulse_indexes' directory for search operations");
@@ -276,3 +197,72 @@ async fn main() -> Result<()> {
 // ====================================================
 // ====================================================
 // ====================================================
+fn load_nsfw_domains() -> Result<HashSet<String>> {
+    let domains = std::fs::read_to_string("top_1m_nsfw_sites.txt")?
+        .lines()
+        .map(|line| line.trim().to_lowercase())
+        .collect();
+    Ok(domains)
+}
+
+fn extract_domain(url: &str) -> Option<String> {
+    url.trim_start_matches("http://")
+        .trim_start_matches("https://")
+        .trim_start_matches("www.")
+        .split('/')
+        .next()
+        .map(|s| s.to_lowercase())
+}
+
+fn is_nsfw_domain(url: &str, nsfw_domains: &HashSet<String>) -> bool {
+    if let Some(domain) = extract_domain(url) {
+        nsfw_domains.contains(&domain)
+    } else {
+        false
+    }
+}
+
+fn is_nsfw(text: &str, nsfw_domains: &HashSet<String>) -> bool {
+    const NSFW_KEYWORDS: [&str; 34] = [
+        "porn",
+        "xxx",
+        "adult",
+        "nsfw",
+        "sex",
+        "nude",
+        "naked",
+        "slut",
+        "boobs",
+        "vagina",
+        "penis",
+        "fuck",
+        "shit",
+        "pussy",
+        "dick",
+        "ass",
+        "tits",
+        "milf",
+        "anal",
+        "blowjob",
+        "orgasm",
+        "bondage",
+        "fetish",
+        "masturbation",
+        "hentai",
+        "incest",
+        "rape",
+        "bdsm",
+        "cumshot",
+        "creampie",
+        "horny",
+        "pornography",
+        "erotic",
+        "genitals",
+    ];
+
+    let text_lower = text.to_lowercase();
+    NSFW_KEYWORDS
+        .iter()
+        .any(|&keyword| text_lower.contains(keyword))
+        || is_nsfw_domain(text, nsfw_domains)
+}

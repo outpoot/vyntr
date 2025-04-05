@@ -88,25 +88,22 @@ async fn main() -> Result<()> {
                 })
                 .map_or("", |s| &s);
 
-            let meta_str = owned_doc
-                .get_first(meta_field)
-                .and_then(|owned_val| match owned_val {
-                    OwnedValue::Str(s) => Some(s),
-                    _ => None,
-                })
-                .map_or("", |s| &s);
-
             println!(
-                "Score: {:.2}\nTitle: {}\nURL: {}\nDescription: {}\nFlags: nsfw={}, harassment={}, hate={}, violence={}, self_harm={}\n{}",
+                "Score: {:.2}\nTitle: {}\nURL: {}\nDescription: {}\nNSFW: {}\n{}",
                 score,
                 title_str,
                 url_str,
-                meta_str,
-                owned_doc.get_first(schema.get_field("nsfw").unwrap()).and_then(|v| v.as_bool()).unwrap_or_default(),
-                owned_doc.get_first(schema.get_field("harassment").unwrap()).and_then(|v| v.as_bool()).unwrap_or_default(),
-                owned_doc.get_first(schema.get_field("hate").unwrap()).and_then(|v| v.as_bool()).unwrap_or_default(),
-                owned_doc.get_first(schema.get_field("violence").unwrap()).and_then(|v| v.as_bool()).unwrap_or_default(),
-                owned_doc.get_first(schema.get_field("self_harm").unwrap()).and_then(|v| v.as_bool()).unwrap_or_default(),
+                owned_doc
+                    .get_first(meta_field)
+                    .and_then(|v| match v {
+                        OwnedValue::Str(s) => Some(s),
+                        _ => None,
+                    })
+                    .map_or("", |s| &s),
+                owned_doc
+                    .get_first(schema.get_field("nsfw").unwrap())
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or_default(),
                 "─".repeat(50)
             );
         }
