@@ -102,11 +102,13 @@
 							{/if}
 						</div>
 					</Card.Content>
-					<Card.Footer class="flex justify-end gap-2">
-						<Button variant="destructive" onclick={() => handleAction(domain, 'reject')}>
-							<X class="h-4 w-4" />
+					<Card.Footer class="flex justify-end gap-4">
+						<button
+							class="underline"
+							onclick={() => handleAction(domain, 'reject')}
+						>
 							Reject
-						</Button>
+						</button>
 						<Button variant="default" onclick={() => handleAction(domain, 'approve')}>
 							<Check class="h-4 w-4" />
 							Approve

@@ -6,24 +6,17 @@ import { eq, and, desc, gte } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
-    const session = await auth.api.getSession({
-        headers: event.request.headers
-    });
+    const session = await auth.api.getSession({ headers: event.request.headers });
 
     if (!session?.user) {
         throw error(401, 'Not authenticated');
     }
 
-    const keys = await auth.api.listApiKeys({
-        headers: event.request.headers
-    });
-
-    const apiKey = keys.length > 0 ? keys[0] : null;
+    const [key] = await auth.api.listApiKeys({ headers: event.request.headers });
 
     let usageData = {};
 
-    if (apiKey) {
-        // Get actual usage data by user ID, limited to last 30 days
+    if (key) {
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -36,14 +29,13 @@ export const load: PageServerLoad = async (event) => {
             .orderBy(desc(apiusage.date))
             .limit(30);
 
-        // Create data map directly from usage records
         usageData = Object.fromEntries(
             usage.map(record => [record.date, record.count])
         );
     }
 
     return {
-        apiKey,
+        apiKey: key,
         usageData
     };
 };

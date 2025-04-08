@@ -41,7 +41,7 @@ export const POST: RequestHandler = async (event) => {
             rateLimitEnabled: true,
             rateLimitTimeWindow: 1000 * 60 * 60 * 24, // 1 day
             rateLimitMax: 1000,
-            remaining: 10000, // Initial credit balance
+            remaining: 1000, // Initial credit balance
             refillAmount: 1000,
             refillInterval: 1000 * 60 * 60 * 24, // Refill daily
             permissions: {

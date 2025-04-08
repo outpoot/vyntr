@@ -8,12 +8,17 @@
 	import Status from '$lib/components/self/Status.svelte';
 	import { LinkedChart, LinkedValue, LinkedLabel } from 'svelte-tiny-linked-charts';
 	import { formatDateFriendly } from '$lib/utils';
+	import { subscriptionStore } from '$lib/stores/subscription';
 
 	let { data } = $props();
 	let apiKey = $state(null);
 	let apiKeyId = $state<string | null>(data.apiKey?.id || null);
 	let justCreated = $state(false);
-	let credits = $state(data.apiKey?.remaining ?? 1000);
+	let credits = $state(data.apiKey?.remaining	|| 0);
+
+	$effect(() => {
+		subscriptionStore.checkStatus();
+	});
 
 	const usageData = $state(data.usageData || {});
 	const totalRequests = $derived<number>(
@@ -94,7 +99,9 @@
 						<Button
 							variant="outline"
 							class="relative flex h-auto w-full flex-col gap-1 p-4 hover:border-primary"
-							onclick={() => (window.location.href = `/premium?credits=${pkg.credits}`)}
+							href={`/api/auth/checkout/${pkg.credits}`}
+							data-polar-checkout
+							data-polar-checkout-theme="light"
 						>
 							<div class="flex w-full items-center justify-between">
 								<span class="text-lg font-bold">

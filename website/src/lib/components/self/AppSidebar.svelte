@@ -9,7 +9,7 @@
 	import Wand from './icon/Wand.svelte';
 	import SignIn from './icon/SignIn.svelte';
 	import Settings from './icon/Settings.svelte';
-	import { Sun, Moon, Upload } from 'lucide-svelte';
+	import { Sun, Moon } from 'lucide-svelte';
 	import Key from './icon/Key.svelte';
 
 	import { activeSidebarItem } from '$lib/stores/sidebar';
@@ -21,6 +21,7 @@
 	import More from './icon/More.svelte';
 	import Dns from './icon/Dns.svelte';
 	import { goto } from '$app/navigation';
+	import { Label } from '../ui/label';
 
 	let navItems = $derived([
 		{ id: 'home', label: 'Home', icon: Home, href: '/' },
@@ -28,12 +29,16 @@
 		{ id: 'chatbot', label: 'Chatbot', icon: Wand, href: '/chatbot' },
 		{ id: 'premium', label: 'Premium', icon: Crown, href: '/premium' },
 		{ id: 'api', label: 'API', icon: Key, href: '/api' },
-		{
-			id: 'account',
-			label: $USER_DATA ? 'Profile' : 'Sign In',
-			icon: $USER_DATA ? Home : SignIn,
-			href: $USER_DATA ? '/profile' : undefined
-		}
+		...(!$USER_DATA
+			? [
+					{
+						id: 'account',
+						label: 'Sign In',
+						icon: SignIn,
+						href: undefined
+					}
+				]
+			: [])
 	]);
 
 	async function handleSignIn(provider: 'discord' | 'google') {
@@ -74,9 +79,10 @@
 
 <Sidebar.Root collapsible="icon">
 	<Sidebar.Header class="ml-3 mt-4 flex flex-row items-center p-2">
-		<h1 class="montserrat-black text-2xl">Vyntr</h1>
+		<Label class="montserrat-black text-2xl font-bold">Vyntr</Label>
 		{#if $USER_DATA?.isAdmin}
-			<span class="text-[0.5rem] md:text-xs">| Admin</span>
+			<span class="flex items-center justify-center text-[0.5rem] md:text-xs">|</span>
+			<span class="text-[0.5rem] md:text-xs">Admin</span>
 		{/if}
 	</Sidebar.Header>
 
@@ -158,6 +164,14 @@
 									<span class="label font-medium">My Domains</span>
 								</button>
 
+								<button
+									onclick={() => goto('/settings')}
+									class="flex w-full items-center gap-2 rounded-md p-3 text-sm font-medium transition-colors hover:bg-sidebar-accent"
+								>
+									<Settings class="h-4 w-4" />
+									<span class="label font-medium">Settings</span>
+								</button>
+
 								{#if $USER_DATA?.isAdmin}
 									<button
 										onclick={() => goto('/admin/domains')}
@@ -174,19 +188,6 @@
 			</Sidebar.GroupContent>
 		</Sidebar.Group>
 	</Sidebar.Content>
-
-	<Sidebar.Footer>
-		<Sidebar.MenuButton
-			class="menu-button flex h-12 items-center justify-start px-3 text-lg group-data-[collapsible=icon]:!p-0"
-		>
-			<div class="relative h-6 w-6" data-item="settings">
-				<div class="absolute inset-0 flex items-center justify-center">
-					<Settings size={24} class="icon" filled={false} />
-				</div>
-			</div>
-			<span class="label font-medium">Settings</span>
-		</Sidebar.MenuButton>
-	</Sidebar.Footer>
 </Sidebar.Root>
 
 <SignInConfirmDialog bind:open={showConfirm} onConfirm={handleSignIn} />
