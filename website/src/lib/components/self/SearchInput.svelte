@@ -9,7 +9,7 @@
 		value = $bindable(),
 		enableAutocomplete = $bindable(true),
 		showTrailingButtons = true,
-		className = $bindable(''),
+		className = $bindable('')
 	} = $props();
 
 	let searchIcon: any;
@@ -97,7 +97,7 @@
 			bind:this={inputRef}
 			placeholder="How do I cook..."
 			class={cn(
-				'flex h-11 w-full border bg-card px-3 py-2 pl-14 text-base shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md placeholder:text-muted focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:h-12 sm:pl-16 sm:text-lg md:h-14',
+				'flex h-11 w-full border bg-card px-3 py-2 pl-14 text-base shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md  transition-colors placeholder:text-muted focus-within:border-primary/80 hover:bg-card-hover focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:h-12 sm:pl-16 sm:text-lg md:h-14',
 				showSuggestions ? 'rounded-b-none rounded-t-[1.5rem] border-b-0' : 'rounded-[1.5rem]'
 			)}
 			onfocus={() => {

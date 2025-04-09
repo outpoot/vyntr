@@ -10,7 +10,7 @@
 	class="relative mb-6 overflow-hidden rounded-xl border bg-card p-4 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md"
 >
 	<div class="flex items-start gap-4">
-		<div class="rounded-full bg-primary/50 p-2 transition-transform hover:scale-110">
+		<div class="rounded-full bg-primary/20 p-2 transition-transform hover:scale-110">
 			<Book class="h-4 w-4" />
 		</div>
 		<div class="flex w-full flex-col gap-4">
@@ -29,7 +29,7 @@
 					{#each details.definitions as def, i}
 						<div class="inline-flex items-start justify-center gap-3">
 							<div
-								class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/50 p-2 transition-transform hover:scale-110 select-none"
+								class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 p-2 transition-transform hover:scale-110 select-none"
 							>
 								{i + 1}
 							</div>
@@ -59,7 +59,7 @@
 						<h4 class="text-success my-auto text-sm">Similar:</h4>
 						<div class="flex flex-wrap gap-1">
 							{#each details.synonyms as synonym}
-								<Badge variant="outline" class="transition-colors hover:bg-primary/50">
+								<Badge variant="outline" class="transition-colors hover:bg-primary/20">
 									{synonym}
 								</Badge>
 							{/each}

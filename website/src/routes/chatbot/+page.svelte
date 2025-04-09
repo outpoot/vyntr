@@ -2,11 +2,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { ScrollArea } from '$lib/components/ui/scroll-area';
 	import { ArrowUp } from 'lucide-svelte';
-	import {
-		Popover,
-		PopoverContent,
-		PopoverTrigger,
-	} from "$lib/components/ui/popover";
+	import { Popover, PopoverContent, PopoverTrigger } from '$lib/components/ui/popover';
 
 	type Source = {
 		title: string;
@@ -186,7 +182,9 @@
 														class="flex flex-col gap-1 rounded-md p-3 text-sm transition-colors hover:bg-sidebar-accent"
 													>
 														<span class="font-medium">{message.sources.bliptext.title}</span>
-														<span class="text-muted-foreground">{message.sources.bliptext.preview || 'From Bliptext'}</span>
+														<span class="text-muted-foreground"
+															>{message.sources.bliptext.preview || 'From Bliptext'}</span
+														>
 														<div class="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
 															<img
 																src={message.sources.bliptext.favicon}
@@ -194,7 +192,7 @@
 																class="h-4 w-4"
 															/>
 															{getDomainFromUrl(message.sources.bliptext.url)}
-															</div>
+														</div>
 													</a>
 												{/if}
 												{#each message.sources.web as source}
@@ -205,15 +203,13 @@
 														class="flex flex-col gap-1 rounded-md p-3 text-sm transition-colors hover:bg-sidebar-accent"
 													>
 														<span class="font-medium">{source.title}</span>
-														<span class="text-muted-foreground">{source.preview || 'No description available'}</span>
+														<span class="text-muted-foreground"
+															>{source.preview || 'No description available'}</span
+														>
 														<div class="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-															<img
-																src={source.favicon}
-																alt={source.title}
-																class="h-4 w-4"
-															/>
+															<img src={source.favicon} alt={source.title} class="h-4 w-4" />
 															{getDomainFromUrl(source.url)}
-															</div>
+														</div>
 													</a>
 												{/each}
 											</div>
@@ -267,7 +263,9 @@
 														class="flex flex-col gap-1 rounded-md p-3 text-sm transition-colors hover:bg-sidebar-accent"
 													>
 														<span class="font-medium">{message.sources.bliptext.title}</span>
-														<span class="text-muted-foreground">{message.sources.bliptext.preview || 'From Bliptext'}</span>
+														<span class="text-muted-foreground"
+															>{message.sources.bliptext.preview || 'From Bliptext'}</span
+														>
 														<div class="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
 															<img
 																src={message.sources.bliptext.favicon}
@@ -275,7 +273,7 @@
 																class="h-4 w-4"
 															/>
 															{getDomainFromUrl(message.sources.bliptext.url)}
-															</div>
+														</div>
 													</a>
 												{/if}
 												{#each message.sources.web as source}
@@ -286,15 +284,13 @@
 														class="flex flex-col gap-1 rounded-md p-3 text-sm transition-colors hover:bg-sidebar-accent"
 													>
 														<span class="font-medium">{source.title}</span>
-														<span class="text-muted-foreground">{source.preview || 'No description available'}</span>
+														<span class="text-muted-foreground"
+															>{source.preview || 'No description available'}</span
+														>
 														<div class="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-															<img
-																src={source.favicon}
-																alt={source.title}
-																class="h-4 w-4"
-															/>
+															<img src={source.favicon} alt={source.title} class="h-4 w-4" />
 															{getDomainFromUrl(source.url)}
-															</div>
+														</div>
 													</a>
 												{/each}
 											</div>
@@ -307,9 +303,11 @@
 				{/each}
 
 				{#if messages.length === 0}
-					<div class="py-20 text-center text-muted-foreground">
-						<h3 class="text-lg font-semibold">Welcome to Vyntr Chat</h3>
-						<p class="text-sm">Start a conversation by typing a message below. Vyntr.</p>
+					<div class="flex h-[calc(100vh-12rem)] items-center justify-center">
+						<div class="text-center text-muted-foreground">
+							<h3 class="text-lg font-semibold">Welcome to Vyntr Goon</h3>
+							<p class="text-sm">Start a conversation by typing a message below.</p>
+						</div>
 					</div>
 				{/if}
 			</div>
@@ -322,7 +320,7 @@
 		<div class="mx-auto max-w-3xl">
 			<form class="pointer-events-auto relative flex" onsubmit={handleSubmit}>
 				<div
-					class="hover:bg-card-focus flex w-full items-end overflow-hidden rounded-[1.5rem] border bg-card shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md transition-colors focus-within:border-primary/80"
+					class="flex w-full items-end overflow-hidden rounded-[1.5rem] border bg-card shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md transition-colors focus-within:border-primary/80 hover:bg-card-hover"
 				>
 					<textarea
 						bind:this={textareaElement}
@@ -339,7 +337,7 @@
 						style="min-height: 56px; max-height: 200px;"
 						oninput={handleTextareaInput}
 					></textarea>
-					<Button type="submit" size="icon" class="group mb-2 mr-2 rounded-full aspect-square">
+					<Button type="submit" size="icon" class="group mb-2 mr-2 aspect-square rounded-full">
 						<ArrowUp
 							class="h-6 w-6 transition-transform duration-200 ease-out group-hover:-translate-y-0.5"
 						/>
