@@ -60,3 +60,13 @@ export function formatDateFriendly(dateStr: number): string {
 		year: 'numeric'
 	});
 }
+
+export function getFavicon(url: string) {
+	try {
+		const domain = url;
+		const urlObj = new URL(domain.startsWith('http') ? domain : `https://${domain}`);
+		return `https://www.google.com/s2/favicons?domain=${urlObj.hostname}&sz=32`;
+	} catch (err) {
+		return '';
+	}
+}

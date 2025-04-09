@@ -24,7 +24,7 @@
 	import { Label } from '../ui/label';
 
 	let navItems = $derived([
-		{ id: 'home', label: 'Home', icon: Home, href: '/' },
+		{ id: 'home', label: 'Home', icon: Home, href: '/home' },
 		{ id: 'registry', label: 'Registry', icon: Explore, href: '/registry' },
 		{ id: 'chatbot', label: 'Chatbot', icon: Wand, href: '/chatbot' },
 		{ id: 'premium', label: 'Premium', icon: Crown, href: '/premium' },
@@ -139,6 +139,10 @@
 							</Sidebar.MenuItem>
 						</PopoverTrigger>
 						<PopoverContent class="w-64 rounded-xl p-2" side="right">
+							<p class="px-3 py-1.5">
+								<span class="text-sm font-medium">Logged in as "{$USER_DATA?.name}"</span>
+								<span class="text-sm text-muted-foreground">{$USER_DATA?.email}</span>
+							</p>
 							<div class="flex flex-col">
 								<button
 									class="flex w-full items-center gap-2 rounded-md p-3 text-sm font-medium transition-colors hover:bg-sidebar-accent"

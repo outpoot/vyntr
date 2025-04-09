@@ -11,16 +11,7 @@ import { db } from '$lib/server/db';
 import { apiusage, apikey } from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
 import { SEARCH_ENDPOINT } from '$env/static/private';
-
-function getFavicon(url: string) {
-    try {
-        const domain = url;
-        const urlObj = new URL(domain.startsWith('http') ? domain : `https://${domain}`);
-        return `https://www.google.com/s2/favicons?domain=${urlObj.hostname}&sz=32`;
-    } catch (err) {
-        return '';
-    }
-}
+import { getFavicon } from '$lib/utils';
 
 async function fetchSearchResults(query: string) {
     try {

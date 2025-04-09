@@ -11,6 +11,7 @@
     --foreground: 240 100% 5%;
     --card: 60 50% 90%;
     --card-foreground: 60 5% 15%;
+    --card-hover: 60 50% 92%;
     --popover: 60 100% 95%;
     --popover-foreground: 60 100% 10%;
     --primary: 22 90% 25%;
@@ -45,8 +46,11 @@
     --foreground: 60 5% 90%;
     --card: 240 9% 13%;
     --card-foreground: 60 5% 90%;
+    --card-hover: color-mix(in srgb, var(--card), black 20%);
+
     --popover: 60 10% 5%;
     --popover-foreground: 60 5% 90%;
+
     --primary: 60 9.1% 87.1%;
     --primary-foreground: 0 0% 0%;
     --secondary: 60 10% 20%;
