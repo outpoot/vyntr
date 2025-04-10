@@ -4,7 +4,7 @@ use serde::Deserialize;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::{Instant, SystemTime};
-use tantivy::schema::{Schema, STORED, TEXT};
+use tantivy::schema::{Schema, STORED, TEXT, };
 use tantivy::{doc, Index};
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -47,10 +47,10 @@ async fn create_search_index() -> Result<Index> {
     schema_builder.add_text_field("url", TEXT | STORED);
     schema_builder.add_text_field("title", TEXT | STORED);
     schema_builder.add_text_field("content", TEXT);
-    schema_builder.add_text_field("preview", STORED);
-    schema_builder.add_text_field("language", STORED);
+    schema_builder.add_text_field("preview", INDEXED | STORED);
+    schema_builder.add_text_field("language", INDEXED | STORED | FAST);
     schema_builder.add_text_field("meta_tags", TEXT | STORED);
-    schema_builder.add_bool_field("nsfw", STORED);
+    schema_builder.add_bool_field("nsfw", INDEXED | STORED | FAST);
 
     let schema = schema_builder.build();
     let index = Index::create_in_dir(&index_path, schema)?;
