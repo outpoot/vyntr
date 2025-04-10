@@ -1,4 +1,4 @@
-import { error, json } from '@sveltejs/kit';
+import { error, json, redirect } from '@sveltejs/kit';
 import { searchBliptext } from '$lib/server/bliptext';
 import { parseDateQuery } from '$lib/utils/date';
 import { formatTimeDifference, TIME_UNITS } from '$lib/utils/time';
@@ -8,15 +8,17 @@ import { parseUnitQuery } from '$lib/utils/unitParser';
 import { convertUnit, UNITS } from '$lib/utils/units';
 import { auth } from '$lib/auth';
 import { db } from '$lib/server/db';
-import { apiusage, apikey } from '$lib/server/schema';
-import { eq, and } from 'drizzle-orm';
+import { apiusage, apikey, searchQueries, userPreferences } from '$lib/server/schema';
+import { eq, and, sql } from 'drizzle-orm';
 import { SEARCH_ENDPOINT } from '$env/static/private';
 import { getFavicon } from '$lib/utils';
+import { BANGS } from '$lib/bangs';
 
-async function fetchSearchResults(query: string) {
+async function fetchSearchResults(query: string, language: string = 'en') {
     try {
         const encodedQuery = encodeURIComponent(query);
-        const response = await fetch(`${SEARCH_ENDPOINT}${encodedQuery}`);
+        const url = `${SEARCH_ENDPOINT}${encodedQuery}?language=${language}`;
+        const response = await fetch(url);
         const data = await response.json();
 
         return data.results.map((result: any) => ({
@@ -34,11 +36,47 @@ async function fetchSearchResults(query: string) {
     }
 }
 
-export async function GET({ url, request }) {
-    const authHeader = request.headers.get('Authorization');
-    let userId = null;
+async function saveSearchQuery(query: string) {
+    try {
+        const normalizedQuery = query.toLowerCase().trim();
+        await db.insert(searchQueries)
+            .values({
+                query: normalizedQuery,
+                count: 1,
+            })
+            .onConflictDoUpdate({
+                target: searchQueries.query,
+                set: {
+                    count: sql`${searchQueries.count} + 1`,
+                    updatedAt: new Date()
+                }
+            });
+    } catch (err) {
+        console.error('Failed to log search query:', err);
+    }
+}
 
-    if (authHeader?.startsWith('Bearer ')) {
+export async function GET({ url, request }) {
+    const query = url.searchParams.get('q');
+    if (!query) {
+        throw error(400, 'Query parameter "q" is required');
+    }
+
+    const authHeader = request.headers.get('Authorization');
+
+    let userId = null;
+    let userPrefs = null;
+
+    const session = await auth.api.getSession({ headers: request.headers });
+
+    if (session?.user) {
+        userId = session.user.id;
+        const prefs = await db.query.userPreferences.findFirst({
+            where: eq(userPreferences.userId, userId)
+        });
+        userPrefs = prefs;
+    }
+    else if (authHeader?.startsWith('Bearer ')) {
         const apiKeyStr = authHeader.substring(7);
         const { valid, error: verifyError, key } = await auth.api.verifyApiKey({
             body: { key: apiKeyStr }
@@ -48,7 +86,6 @@ export async function GET({ url, request }) {
             throw error(401, 'Invalid API key');
         }
 
-        // Get the user ID from the API key record
         const keyRecord = await db.select()
             .from(apikey)
             .where(eq(apikey.id, key.id))
@@ -60,7 +97,7 @@ export async function GET({ url, request }) {
 
         userId = keyRecord[0].userId;
 
-        // Track API usage
+        // track API usage
         const today = new Date().toISOString().split('T')[0];
         try {
             const existingRecord = await db.select()
@@ -92,9 +129,11 @@ export async function GET({ url, request }) {
         }
     }
 
-    const query = url.searchParams.get('q');
-    if (!query) {
-        throw error(400, 'Query parameter "q" is required');
+    const language = userPrefs?.preferredLanguage || 'en';
+
+    // log search query
+    if (!userPrefs || userPrefs.anonymousQueries) {
+        saveSearchQuery(query);
     }
 
     // ==================== DATE ====================
@@ -123,7 +162,7 @@ export async function GET({ url, request }) {
     }
 
     // ==================== WEB SEARCH ====================
-    const webResults = await fetchSearchResults(query);
+    const webResults = await fetchSearchResults(query, language);
 
     // ==================== BLIPTEXT SEARCH ====================
     const bliptextResults = await searchBliptext(query);
@@ -148,12 +187,18 @@ export async function GET({ url, request }) {
         currencyDetail = await performConversion(currencyMatch);
     }
 
+    let aiSummary = null;
+    if (!userPrefs || userPrefs.aiSummarise) {
+        // TODO: Implement AI summary generation
+    }
+
     return json({
         web: webResults,
         bliptext: bliptextDetail,
         date: dateDetail,
         word: wordDetail,
         currency: currencyDetail,
-        unitConversion: unitConversionDetail
+        unitConversion: unitConversionDetail,
+        ai_summary: aiSummary
     });
 }

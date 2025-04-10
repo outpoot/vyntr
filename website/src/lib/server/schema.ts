@@ -62,6 +62,20 @@ export const websiteVote = pgTable('website_votes', {
 	pk: primaryKey({ columns: [table.website, table.userId] })
 }));
 
+export const userPreferences = pgTable('user_preferences', {
+	userId: text('user_id').primaryKey().references(() => user.id, { onDelete: 'cascade' }),
+	preferredLanguage: text('preferred_language').default('en').notNull(),
+	safeSearch: boolean('safe_search').default(true).notNull(),
+	autocomplete: boolean('autocomplete').default(true).notNull(),
+	instantResults: boolean('instant_results').default(true).notNull(),
+	aiSummarise: boolean('ai_summarise').default(true).notNull(),
+	anonymousQueries: boolean('anonymous_queries').default(true).notNull(),
+	analyticsEnabled: boolean('analytics_enabled').default(true).notNull(),
+	aiPersonalization: boolean('ai_personalization').default(true).notNull(),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at').defaultNow().notNull()
+});
+
 // ======= BETTERAUTH - DO NOT MODIFY =======
 export const session = pgTable("session", {
 	id: text("id").primaryKey(),
@@ -124,10 +138,19 @@ export const apikey = pgTable("apikey", {
 });
 
 export const apiusage = pgTable('api_usage', {
-    id: uuid('id').defaultRandom().primaryKey(),
-    userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-    date: text('date').notNull(), // YYYY-MM-DD format
-    count: integer('count').notNull().default(0),
-    createdAt: timestamp('created_at').notNull(),
-    updatedAt: timestamp('updated_at').notNull(),
+	id: uuid('id').defaultRandom().primaryKey(),
+	userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+	date: text('date').notNull(), // YYYY-MM-DD format
+	count: integer('count').notNull().default(0),
+	createdAt: timestamp('created_at').notNull(),
+	updatedAt: timestamp('updated_at').notNull(),
+});
+
+export const searchQueries = pgTable('search_queries', {
+	id: uuid('id').defaultRandom().primaryKey(),
+	query: text('query').notNull().unique(),
+	count: integer('count').notNull().default(1),
+	source: text('source').notNull().default('vyntr'), // vyntr, google, amazon, etc
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

@@ -13,6 +13,7 @@
 	const buttonClass =
 		'border bg-card text-card-foreground shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] hover:bg-card-hover';
 
+	let { data } = $props();
 	let showDeleteConfirm = $state(false);
 	let loading = $state(false);
 
@@ -24,19 +25,18 @@
 		{ value: 'it', label: 'Italian' }
 	];
 
-	let selectedLanguage = $state('en');
+	let selectedLanguage = $state(data.preferences.preferredLanguage);
 
 	// Search features
-	let safeSearch = $state(true);
-	let autocomplete = $state(true);
-	let instantResults = $state(true);
-	let aiSummarise = $state(true);
-	let prioritizePopular = $state(true);
+	let safeSearch = $state(data.preferences.safeSearch);
+	let autocomplete = $state(data.preferences.autocomplete);
+	let instantResults = $state(data.preferences.instantResults);
+	let aiSummarise = $state(data.preferences.aiSummarise);
 
 	// Privacy settings
-	let anonymousQueries = $state(true);
-	let analyticsEnabled = $state(true);
-	let aiPersonalization = $state(true);
+	let anonymousQueries = $state(data.preferences.anonymousQueries);
+	let analyticsEnabled = $state(data.preferences.analyticsEnabled);
+	let aiPersonalization = $state(data.preferences.aiPersonalization);
 
 	async function downloadData() {
 		loading = true;
@@ -150,7 +150,7 @@
 			<div class="space-y-2">
 				<Label class="text-sm font-medium">Preferred Language</Label>
 				<Select type="single" bind:value={selectedLanguage} onValueChange={updateLanguage}>
-					<SelectTrigger>Select language</SelectTrigger>
+					<SelectTrigger>{languages.find(l => l.value === selectedLanguage)?.label || 'Select language'}</SelectTrigger>
 					<SelectContent>
 						{#each languages as lang}
 							<SelectItem value={lang.value}>{lang.label}</SelectItem>
@@ -209,17 +209,6 @@
 				<Switch
 					checked={aiSummarise}
 					onCheckedChange={(v) => updateSearchFeature('aiSummarise', v)}
-				/>
-			</div>
-
-			<div class="flex items-center justify-between">
-				<div>
-					<Label class="text-sm font-medium">Prioritize Popular Sites</Label>
-					<p class="text-sm text-muted">Give higher ranking to well-known, trusted websites</p>
-				</div>
-				<Switch
-					checked={prioritizePopular}
-					onCheckedChange={(v) => updateSearchFeature('prioritizePopular', v)}
 				/>
 			</div>
 		</div>

@@ -14,7 +14,7 @@
 
 	import { page } from '$app/state';
 	import DetailsPanelUnitConversion from '$lib/components/self/DetailsPanelUnitConversion.svelte';
-	import { Separator } from '$lib/components/ui/separator';
+	import { handleBangQuery } from '$lib/utils/bangs';
 
 	let query = $state(page.url.searchParams.get('q') || '');
 	let searchData = $state<SearchResponse>({
@@ -34,7 +34,12 @@
 		mathResult = null;
 		timerSeconds = null;
 
-		// Check for timer request
+		const bangRedirect = handleBangQuery(query);
+		if (bangRedirect) {
+			window.location.href = bangRedirect;
+			return;
+		}
+
 		const timerDuration = parseTimerQuery(query);
 		if (timerDuration !== null) {
 			timerSeconds = timerDuration;

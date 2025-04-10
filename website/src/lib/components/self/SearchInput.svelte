@@ -5,6 +5,17 @@
 	import { Separator } from '$lib/components/ui/separator';
 	import { cn } from '$lib/utils.js';
 
+	function debounce<T extends (...args: any[]) => any>(
+		func: T,
+		wait: number
+	): (...args: Parameters<T>) => void {
+		let timeout: ReturnType<typeof setTimeout>;
+		return (...args: Parameters<T>) => {
+			clearTimeout(timeout);
+			timeout = setTimeout(() => func(...args), wait);
+		};
+	}
+
 	let {
 		value = $bindable(),
 		enableAutocomplete = $bindable(true),
@@ -18,22 +29,37 @@
 	let selectedIndex = $state(-1);
 	let inputRef: HTMLInputElement | null = $state(null);
 
-	const suggestions = [
-		'How do I cook pasta',
-		'How do I cook rice',
-		'How do I cook chicken',
-		'How do I cook steak',
-		'How do I cook fish',
-		'How do I cook eggs',
-		'How do I cook potatoes',
-		'How do I cook vegetables',
-		'How do I cook bacon',
-		'How do I cook breakfast'
-	];
+	let suggestions = $state<string[]>([]);
+	let isLoading = $state(false);
 
-	let filteredSuggestions = $derived(
-		suggestions.filter((s) => s.toLowerCase().includes(searchValue?.toLowerCase() ?? ''))
-	);
+	const fetchSuggestions = debounce(async (value: string) => {
+		if (!value || value.length < 2 || !enableAutocomplete) {
+			suggestions = [];
+			return;
+		}
+
+		isLoading = true;
+		try {
+			const response = await fetch(`/api/autocomplete?q=${encodeURIComponent(value)}`);
+			if (response.ok) {
+				suggestions = await response.json();
+			}
+		} catch (err) {
+			console.error('Failed to fetch suggestions:', err);
+		} finally {
+			isLoading = false;
+		}
+	}, 150);
+
+	$effect(() => {
+		if (searchValue) {
+			fetchSuggestions(searchValue);
+		} else {
+			suggestions = [];
+		}
+	});
+
+	let filteredSuggestions = $derived(suggestions);
 	let hasSuggestions = $derived(filteredSuggestions.length > 0);
 	let showSuggestions = $derived(
 		Boolean(enableAutocomplete && searchValue && hasSuggestions && isFocused)

@@ -1,0 +1,1 @@
+ALTER TABLE "search_queries" ADD COLUMN "source" text DEFAULT 'vyntr' NOT NULL;

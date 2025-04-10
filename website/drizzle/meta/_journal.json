@@ -71,6 +71,34 @@
       "when": 1743864939591,
       "tag": "0009_loose_blindfold",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1744285627594,
+      "tag": "0010_gray_sway",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1744286564571,
+      "tag": "0011_youthful_abomination",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1744287681380,
+      "tag": "0012_vengeful_vanisher",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1744289310321,
+      "tag": "0013_strange_darkhawk",
+      "breakpoints": true
     }
   ]
 }
