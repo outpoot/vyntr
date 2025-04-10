@@ -16,6 +16,7 @@ const MAX_RESULTS: usize = 10;
 #[derive(Debug, Deserialize)]
 struct SearchParams {
     q: String,
+    lang: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -61,9 +62,14 @@ async fn search_handler(
 ) -> Result<Json<SearchResponse>, (StatusCode, String)> {
     let searcher = state.reader.searcher();
 
+    let mut query_str = params.q.clone();
+    if let Some(lang) = params.lang {
+        query_str = format!("({}) AND language:{}", query_str, lang);
+    }
+
     let query = state
         .query_parser
-        .parse_query(&params.q)
+        .parse_query(&query_str)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let top_docs = searcher
@@ -154,8 +160,17 @@ async fn main() -> Result<()> {
     let title_field = schema.get_field("title").unwrap();
     let content_field = schema.get_field("content").unwrap();
     let meta_field = schema.get_field("meta_tags").unwrap();
+    let language_field = schema.get_field("language").unwrap();
 
-    let query_parser = QueryParser::for_index(&index, vec![title_field, content_field, meta_field]);
+    let query_parser = QueryParser::for_index(
+        &index,
+        vec![
+            title_field,
+            content_field,
+            meta_field,
+            language_field,
+        ],
+    );
 
     let state = Arc::new(SearchState {
         reader,
