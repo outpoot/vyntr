@@ -23,8 +23,10 @@ struct SearchResult {
     score: f32,
     title: String,
     url: String,
-    meta_description: String, // Add this field
-    nsfw: bool,  // Add NSFW field
+    preview: String,
+    language: String,
+    meta_description: String,
+    nsfw: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -70,6 +72,8 @@ async fn search_handler(
 
     let title_field = state.schema.get_field("title").unwrap();
     let url_field = state.schema.get_field("url").unwrap();
+    let preview_field = state.schema.get_field("preview").unwrap();
+    let language_field = state.schema.get_field("language").unwrap();
     let meta_field = state.schema.get_field("meta_tags").unwrap();
     let nsfw_field = state.schema.get_field("nsfw").unwrap();
 
@@ -97,6 +101,20 @@ async fn search_handler(
                                 _ => None,
                             })
                             .unwrap_or_default(),
+                        preview: doc
+                            .get_first(preview_field)
+                            .and_then(|v| match v {
+                                OwnedValue::Str(s) => Some(s.clone()),
+                                _ => None,
+                            })
+                            .unwrap_or_default(),
+                        language: doc
+                            .get_first(language_field)
+                            .and_then(|v| match v {
+                                OwnedValue::Str(s) => Some(s.clone()),
+                                _ => None,
+                            })
+                            .unwrap_or_else(|| "en".to_string()),
                         meta_description: doc
                             .get_first(meta_field)
                             .and_then(|v| match v {

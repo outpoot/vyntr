@@ -18,6 +18,18 @@ struct JsonlEntry {
     title: Option<String>,
     content_text: Option<String>,
     meta_content: Option<String>,
+    language: Option<String>,
+}
+
+fn generate_preview(text: &str, max_len: usize) -> String {
+    let text = text.trim();
+    if text.len() <= max_len {
+        text.to_string()
+    } else {
+        let mut preview = text.chars().take(max_len).collect::<String>();
+        preview.push_str("...");
+        preview
+    }
 }
 
 async fn create_search_index() -> Result<Index> {
@@ -35,6 +47,8 @@ async fn create_search_index() -> Result<Index> {
     schema_builder.add_text_field("url", TEXT | STORED);
     schema_builder.add_text_field("title", TEXT | STORED);
     schema_builder.add_text_field("content", TEXT);
+    schema_builder.add_text_field("preview", STORED);
+    schema_builder.add_text_field("language", STORED);
     schema_builder.add_text_field("meta_tags", TEXT | STORED);
     schema_builder.add_bool_field("nsfw", STORED);
 
@@ -91,6 +105,9 @@ async fn index_documents(
                     match serde_json::from_str::<JsonlEntry>(&line) {
                         Ok(entry_data) => {
                             let content = entry_data.content_text.as_deref().unwrap_or_default();
+                            let preview = generate_preview(content, 500);
+                            let language = entry_data.language.unwrap_or_else(|| "en".to_string());
+
                             let title = entry_data.title.as_deref().unwrap_or_default();
                             let meta = entry_data.meta_content.as_deref().unwrap_or_default();
 
@@ -104,6 +121,8 @@ async fn index_documents(
                                 schema.get_field("url").unwrap() => entry_data.url,
                                 schema.get_field("title").unwrap() => entry_data.title.unwrap_or_default(),
                                 schema.get_field("content").unwrap() => content,
+                                schema.get_field("preview").unwrap() => preview,
+                                schema.get_field("language").unwrap() => language,
                                 schema.get_field("meta_tags").unwrap() => entry_data.meta_content.unwrap_or_default(),
                                 schema.get_field("nsfw").unwrap() => is_nsfw_content
                             ))?;
