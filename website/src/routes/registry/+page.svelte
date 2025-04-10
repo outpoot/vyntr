@@ -9,6 +9,12 @@
 	import { scale } from 'svelte/transition';
 	import { quintOut } from 'svelte/easing';
 	import VoteButton from '$lib/components/self/VoteButton.svelte';
+	import {
+		Tooltip,
+		TooltipContent,
+		TooltipProvider,
+		TooltipTrigger
+	} from '$lib/components/ui/tooltip';
 
 	type Site = {
 		domain: string;
@@ -74,7 +80,7 @@
 	// --- Placeholder Voting Logic ---
 	async function handleVote(siteDomain: string, voteType: 'up' | 'down') {
 		const domain = getCleanDomain(siteDomain);
-		const site = sites.find(s => s.domain === siteDomain);
+		const site = sites.find((s) => s.domain === siteDomain);
 		if (!site) return;
 
 		try {
@@ -86,11 +92,16 @@
 			});
 
 			if (!response.ok) throw new Error('Failed to vote');
-			
+
 			const result = await response.json();
-			sites = sites.map(s => 
-				s.domain === siteDomain 
-					? { ...s, upvotes: result.upvotes, downvotes: result.downvotes, userVote: site.userVote === voteType ? null : voteType }
+			sites = sites.map((s) =>
+				s.domain === siteDomain
+					? {
+							...s,
+							upvotes: result.upvotes,
+							downvotes: result.downvotes,
+							userVote: site.userVote === voteType ? null : voteType
+						}
 					: s
 			);
 		} catch (err) {
@@ -142,97 +153,119 @@
 				{@const isDownvoted = site.userVote === 'down'}
 
 				<div
-					class="group relative flex flex-col rounded-xl border bg-card p-4 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md transition-shadow hover:shadow-lg"
+					class="group relative rounded-xl border {site.isFeatured
+						? 'bg-card border-primary'
+						: ''} shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md transition-shadow hover:shadow-sm"
 				>
-					<div class="flex flex-1 flex-col gap-3">
-						<div class="flex items-start justify-between gap-2">
-							<a
-								href={site.domain.startsWith('http') ? site.domain : `https://${site.domain}`}
-								target="_blank"
-								rel="noopener noreferrer"
-								class="group/link flex min-w-0 items-center gap-2"
+					{#if site.isFeatured}
+						<div class="absolute inset-0 overflow-hidden rounded-xl">
+							<div class="bg-primary/2 h-full w-full"></div>
+							<div
+								class="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-primary/20 blur-3xl"
+							></div>
+						</div>
+
+						<div class="absolute right-2.5 top-2.5 z-20">
+							<Tooltip>
+								<TooltipTrigger class="overflow-hidden rounded-full">
+									<Star class="h-5 w-5 fill-primary text-primary" />
+								</TooltipTrigger>
+								<TooltipContent class="w-60">
+									<p>Submitted by a Premium member.</p>
+								</TooltipContent>
+							</Tooltip>
+						</div>
+					{/if}
+
+					<div class="relative flex flex-col {site.isFeatured ? '' : 'rounded-xl bg-card'} p-4">
+						<div class="flex flex-1 flex-col gap-3">
+							<div class="flex items-start justify-between gap-2">
+								<a
+									href={site.domain.startsWith('http') ? site.domain : `https://${site.domain}`}
+									target="_blank"
+									rel="noopener noreferrer"
+									class="group/link flex min-w-0 items-center gap-2"
+								>
+									<div
+										class="flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border bg-white"
+									>
+										{#if faviconUrl}
+											<img
+												src={faviconUrl}
+												alt="{getCleanDomain(site.domain)} favicon"
+												class="h-full w-full object-contain"
+												loading="lazy"
+											/>
+										{:else}
+											<Globe class="h-4 w-4 text-muted" aria-hidden="true" />
+										{/if}
+									</div>
+									<h3
+										class="truncate text-base font-semibold text-blue-600 group-hover/link:underline"
+									>
+										{getCleanDomain(site.domain)}
+									</h3>
+									<ArrowUpRight
+										class="h-4 w-4 flex-shrink-0 text-muted transition-colors group-hover/link:text-blue-600"
+									/>
+								</a>
+							</div>
+
+							<div class="flex flex-wrap items-center gap-2 text-xs text-muted">
+								<div class="flex items-center gap-1">
+									<Globe class="h-3 w-3" />
+									<span>{site.visits?.toLocaleString() ?? 'N/A'}</span>
+								</div>
+								<Badge variant="secondary" class="text-xs font-normal capitalize">
+									{WEBSITE_CATEGORIES.find((c) => c.value === site.category)?.label ||
+										site.category}
+								</Badge>
+								<div class="flex gap-1">
+									{#each site.tags?.slice(0, 2) || [] as tag}
+										<Badge variant="outline" class="text-xs font-normal">{tag}</Badge>
+									{/each}
+								</div>
+							</div>
+
+							<p class="line-clamp-2 flex-1 text-sm text-muted">
+								{site.description || 'No description provided.'}
+							</p>
+						</div>
+
+						<div class="mt-3 flex items-center justify-end gap-1 border-t pt-3">
+							<Button
+								variant="ghost"
+								size="icon"
+								class="h-8 w-8 hover:bg-secondary/80"
+								aria-label="Copy link"
+								onclick={() => copyLink(site.domain)}
+								disabled={isCopied}
 							>
-								<div
-									class="flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border bg-white"
-								>
-									{#if faviconUrl}
-										<img
-											src={faviconUrl}
-											alt="{getCleanDomain(site.domain)} favicon"
-											class="h-full w-full object-contain"
-											loading="lazy"
-										/>
-									{:else}
-										<Globe class="h-4 w-4 text-muted" aria-hidden="true" />
-									{/if}
-								</div>
-								<h3
-									class="truncate text-base font-semibold text-blue-600 group-hover/link:underline"
-								>
-									{getCleanDomain(site.domain)}
-								</h3>
-								<ArrowUpRight
-									class="h-4 w-4 flex-shrink-0 text-muted transition-colors group-hover/link:text-blue-600"
-								/>
-							</a>
-							{#if site.isFeatured}
-								<Star class="h-4 w-4 flex-shrink-0 text-yellow-400" aria-label="Featured" />
-							{/if}
+								{#if isCopied}
+									<div in:scale|fade={{ duration: 150, easing: quintOut }}>
+										<Check class="h-4 w-4" />
+									</div>
+								{:else}
+									<div in:scale|fade={{ duration: 150, easing: quintOut }}>
+										<Link2 class="h-4 w-4" />
+									</div>
+								{/if}
+							</Button>
+
+							<VoteButton
+								type="up"
+								count={site.upvotes}
+								isActive={isUpvoted}
+								handleVote={() => handleVote(site.domain, 'up')}
+							/>
+
+							<VoteButton
+								type="down"
+								count={site.downvotes}
+								isActive={isDownvoted}
+								handleVote={() => handleVote(site.domain, 'down')}
+							/>
 						</div>
-
-						<div class="flex flex-wrap items-center gap-2 text-xs text-muted">
-							<div class="flex items-center gap-1">
-								<Globe class="h-3 w-3" />
-								<span>{site.visits?.toLocaleString() ?? 'N/A'}</span>
-							</div>
-							<Badge variant="secondary" class="text-xs font-normal capitalize">
-								{WEBSITE_CATEGORIES.find((c) => c.value === site.category)?.label || site.category}
-							</Badge>
-							<div class="flex gap-1">
-								{#each site.tags?.slice(0, 2) || [] as tag}
-									<Badge variant="outline" class="text-xs font-normal">{tag}</Badge>
-								{/each}
-							</div>
-						</div>
-
-						<p class="line-clamp-2 flex-1 text-sm text-muted">
-							{site.description || 'No description provided.'}
-						</p>
-					</div>
-
-					<div class="mt-3 flex items-center justify-end gap-1 border-t pt-3">
-						<Button
-							variant="ghost"
-							size="icon"
-							class="h-8 w-8 hover:bg-secondary/80"
-							aria-label="Copy link"
-							onclick={() => copyLink(site.domain)}
-							disabled={isCopied}
-						>
-							{#if isCopied}
-								<div in:scale|fade={{ duration: 150, easing: quintOut }}>
-									<Check class="h-4 w-4" />
-								</div>
-							{:else}
-								<div in:scale|fade={{ duration: 150, easing: quintOut }}>
-									<Link2 class="h-4 w-4" />
-								</div>
-							{/if}
-						</Button>
-
-						<VoteButton
-							type="up"
-							count={site.upvotes}
-							isActive={isUpvoted}
-							handleVote={() => handleVote(site.domain, 'up')}
-						/>
-
-						<VoteButton
-							type="down"
-							count={site.downvotes}
-							isActive={isDownvoted}
-							handleVote={() => handleVote(site.domain, 'down')}
-						/>
 					</div>
 				</div>
 			{/each}

@@ -12,6 +12,11 @@
 	let showModal = $state(false);
 	let isValidDomain = $state(false);
 
+	let { data } = $props();
+	const maxDomains = data.isPremium ? 50 : 20;
+	const remainingDomains = maxDomains - data.domainCount;
+	const canSubmitMore = remainingDomains > 0;
+
 	function normalizeDomain(input: string) {
 		// remove any existing protocols
 		let normalized = input.replace(/^https?:\/\//, '');
@@ -53,6 +58,20 @@
 
 	<div class="flex items-end gap-2">
 		<div class="w-full max-w-xl space-y-1">
+			{#if !canSubmitMore}
+				<Status
+					type="error"
+					message={data.isPremium
+						? "You've reached the maximum limit of 50 domains."
+						: "You've reached the free limit of 20 domains. Upgrade to Premium to register up to 50 domains."}
+				/>
+			{:else}
+				<Status
+					type="info"
+					message={`You can register ${remainingDomains} more domain${remainingDomains === 1 ? '' : 's'}`}
+				/>
+			{/if}
+
 			<Label>Domain to register</Label>
 			<div class="flex items-center rounded-md border shadow-sm">
 				<span
@@ -68,7 +87,9 @@
 				/>
 			</div>
 		</div>
-		<Button variant="default" onclick={generateToken} disabled={!isValidDomain}>Proceed</Button>
+		<Button variant="default" onclick={generateToken} disabled={!isValidDomain || !canSubmitMore}>
+			Proceed
+		</Button>
 	</div>
 
 	{#if error}

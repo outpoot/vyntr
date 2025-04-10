@@ -129,6 +129,11 @@
 			return url;
 		}
 	}
+
+	function getPreview(preview: string | undefined) {
+		if (!preview) return 'No description available';
+		return preview.length > 100 ? preview.slice(0, 100) + '...' : preview;
+	}
 </script>
 
 <div class="relative flex h-screen max-h-screen flex-col">
@@ -203,9 +208,7 @@
 														class="flex flex-col gap-1 rounded-md p-3 text-sm transition-colors hover:bg-sidebar-accent"
 													>
 														<span class="font-medium">{source.title}</span>
-														<span class="text-muted-foreground"
-															>{source.preview || 'No description available'}</span
-														>
+														<span class="text-muted-foreground">{getPreview(source.preview)}</span>
 														<div class="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
 															<img src={source.favicon} alt={source.title} class="h-4 w-4" />
 															{getDomainFromUrl(source.url)}
@@ -284,9 +287,7 @@
 														class="flex flex-col gap-1 rounded-md p-3 text-sm transition-colors hover:bg-sidebar-accent"
 													>
 														<span class="font-medium">{source.title}</span>
-														<span class="text-muted-foreground"
-															>{source.preview || 'No description available'}</span
-														>
+														<span class="text-muted-foreground">{getPreview(source.preview)}</span>
 														<div class="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
 															<img src={source.favicon} alt={source.title} class="h-4 w-4" />
 															{getDomainFromUrl(source.url)}

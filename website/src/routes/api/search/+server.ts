@@ -17,7 +17,8 @@ import { BANGS } from '$lib/bangs';
 async function fetchSearchResults(query: string, language: string = 'en') {
     try {
         const encodedQuery = encodeURIComponent(query);
-        const url = `${SEARCH_ENDPOINT}${encodedQuery}?language=${language}`;
+        const url = `${SEARCH_ENDPOINT}${encodedQuery}&language=${language}`;
+        console.log('Search URL:', url);
         const response = await fetch(url);
         const data = await response.json();
 
@@ -27,7 +28,7 @@ async function fetchSearchResults(query: string, language: string = 'en') {
             url: result.url,
             pageTitle: result.title,
             date: result.date || new Date().toISOString(),
-            preview: result.meta_description || '',
+            preview: result.preview || '',
             score: result.score
         }));
     } catch (err) {

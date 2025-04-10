@@ -69,7 +69,7 @@
 					{formatDate(result.date)} ―
 				</span>
 			{/if}
-			{result.preview}
+			{result.preview.length > 100 ? result.preview.slice(0, 100) + '...' : result.preview}
 		</span>
 	</div>
 </div>

@@ -38,6 +38,10 @@
 	let analyticsEnabled = $state(data.preferences.analyticsEnabled);
 	let aiPersonalization = $state(data.preferences.aiPersonalization);
 
+	$effect(() => {
+		subscriptionStore.checkStatus();
+	});
+
 	async function downloadData() {
 		loading = true;
 		try {
@@ -150,7 +154,10 @@
 			<div class="space-y-2">
 				<Label class="text-sm font-medium">Preferred Language</Label>
 				<Select type="single" bind:value={selectedLanguage} onValueChange={updateLanguage}>
-					<SelectTrigger>{languages.find(l => l.value === selectedLanguage)?.label || 'Select language'}</SelectTrigger>
+					<SelectTrigger
+						>{languages.find((l) => l.value === selectedLanguage)?.label ||
+							'Select language'}</SelectTrigger
+					>
 					<SelectContent>
 						{#each languages as lang}
 							<SelectItem value={lang.value}>{lang.label}</SelectItem>
