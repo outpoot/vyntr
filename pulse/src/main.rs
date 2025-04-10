@@ -4,7 +4,7 @@ use serde::Deserialize;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::{Instant, SystemTime};
-use tantivy::schema::{Schema, STORED, TEXT, };
+use tantivy::schema::{Schema, STORED, TEXT, INDEXED, FAST};
 use tantivy::{doc, Index};
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, BufReader};
