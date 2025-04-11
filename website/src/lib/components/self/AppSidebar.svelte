@@ -15,13 +15,14 @@
 	import { activeSidebarItem } from '$lib/stores/sidebar';
 	import { scale } from 'svelte/transition';
 	import { signIn } from '$lib/auth-client';
-	import { page } from '$app/state';
 	import { USER_DATA } from '$lib/stores/userdata';
 	import { mode, setMode } from 'mode-watcher';
 	import More from './icon/More.svelte';
 	import Dns from './icon/Dns.svelte';
 	import { goto } from '$app/navigation';
 	import { Label } from '../ui/label';
+	import { page } from '$app/state';
+	import { onMount } from 'svelte';
 
 	let navItems = $derived([
 		{ id: 'home', label: 'Home', icon: Home, href: '/home' },
@@ -40,6 +41,14 @@
 				]
 			: [])
 	]);
+
+	onMount(() => {
+		const currentPath = page.url.pathname;
+		const matchingItem = navItems.find((item) => item.href === currentPath);
+		if (matchingItem && $activeSidebarItem !== matchingItem.id) {
+			$activeSidebarItem = matchingItem.id;
+		}
+	});
 
 	async function handleSignIn(provider: 'discord' | 'google') {
 		await signIn.social({
