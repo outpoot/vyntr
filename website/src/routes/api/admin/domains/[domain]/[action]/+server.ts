@@ -2,7 +2,7 @@ import { error } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { website } from '$lib/server/schema';
 import { eq } from 'drizzle-orm';
-import { requireAdmin } from '$lib/server/admin';
+import { requireAdmin } from '$lib/server/authHelper';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async (event) => {

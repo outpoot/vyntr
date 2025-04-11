@@ -6,6 +6,7 @@ import { auth } from '$lib/auth';
 import { PUBLIC_PRODUCT_ID_PREMIUM } from '$env/static/public';
 import type { RequestHandler } from './$types';
 import { eq } from 'drizzle-orm';
+import { checkPremiumStatus } from '$lib/server/authHelper';
 
 export const POST: RequestHandler = async ({ request, fetch }) => {
     const session = await auth.api.getSession({
@@ -17,12 +18,7 @@ export const POST: RequestHandler = async ({ request, fetch }) => {
     }
 
     // Check subscription status
-    const subscriptionRes = await fetch('/api/auth/state');
-    const { activeSubscriptions } = await subscriptionRes.json();
-    const isPremium = activeSubscriptions?.some(
-        (sub: { status: string; productId: string; }) =>
-            sub.status === 'active' && sub.productId === PUBLIC_PRODUCT_ID_PREMIUM
-    );
+    const isPremium = await checkPremiumStatus(session.user.id);
 
     const domains = await db.query.website.findMany({
         where: eq(website.userId, session.user.id)

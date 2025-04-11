@@ -10,7 +10,7 @@ export async function load({ request, params }) {
     });
 
     if (!session?.user) {
-        throw redirect(302, '/login');
+        throw error(401, 'Unauthorized');
     }
 
     const domain = await db.query.website.findFirst({

@@ -3,6 +3,8 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Check, Sparkles, MessageSquare, Zap, Crown } from 'lucide-svelte';
 	import { subscriptionStore } from '$lib/stores/subscription';
+    import { USER_DATA } from '$lib/stores/userdata';
+	import { toast } from 'svelte-sonner';
 
 	const benefits = [
 		'100 messages per day with Yappatron AI',
@@ -116,11 +118,20 @@
 				</ul>
 				<Button
 					class="mt-8 w-full"
-					href={$subscriptionStore.isActive ? '/api/auth/portal' : '/api/auth/checkout/premium'}
-					data-polar-checkout
+					href={!$USER_DATA 
+						? undefined 
+						: ($subscriptionStore.isActive 
+							? '/api/auth/portal' 
+							: '/api/auth/checkout/premium')}
+					onclick={!$USER_DATA ? () => toast.error('Please sign in to upgrade') : undefined}
+					data-polar-checkout={$USER_DATA}
 					data-polar-checkout-theme
 				>
-					{$subscriptionStore.isActive ? 'Manage Subscription' : 'Upgrade to Premium'}
+					{!$USER_DATA 
+						? 'Sign in to upgrade' 
+						: ($subscriptionStore.isActive 
+							? 'Manage Subscription' 
+							: 'Upgrade to Premium')}
 				</Button>
 			</div>
 		</Card>

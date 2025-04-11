@@ -1,5 +1,6 @@
 <script lang="ts">
-	import DomainVerifyModal from '$lib/components/self/DomainVerifyModal.svelte';
+	import AuthGate from '$lib/components/self/AuthGate.svelte';
+import DomainVerifyModal from '$lib/components/self/DomainVerifyModal.svelte';
 	import Status from '$lib/components/self/Status.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -54,7 +55,7 @@
 
 <div class="space-y-4 p-4">
 	<Label class="text-xl font-bold">Register Your Domain</Label>
-	<p class="text-sm text-muted">Add your domain to our registry and search index</p>
+	<p class="text-sm text-muted">Add your domain to our registry</p>
 
 	<div class="flex items-end gap-2">
 		<div class="w-full max-w-xl space-y-1">

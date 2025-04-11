@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, integer, json, uuid, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, json, uuid, primaryKey, date, unique } from "drizzle-orm/pg-core";
 
 // ======= CONFIGURABLE =======
 export const user = pgTable("user", {
@@ -154,3 +154,14 @@ export const searchQueries = pgTable('search_queries', {
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
+
+export const dailyMessageUsage = pgTable('daily_message_usage', {
+	id: uuid('id').defaultRandom().primaryKey(),
+	userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+	date: date('date').notNull(),
+	count: integer('count').notNull().default(0),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+	userDateUnique: unique().on(table.userId, table.date)
+}));

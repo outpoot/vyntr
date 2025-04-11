@@ -14,7 +14,7 @@
 
 	import { activeSidebarItem } from '$lib/stores/sidebar';
 	import { scale } from 'svelte/transition';
-	import { signIn } from '$lib/auth-client';
+	import { signIn, signOut } from '$lib/auth-client';
 	import { USER_DATA } from '$lib/stores/userdata';
 	import { mode, setMode } from 'mode-watcher';
 	import More from './icon/More.svelte';
@@ -57,6 +57,11 @@
 			provider,
 			callbackURL: `${page.url.pathname}?signIn=1`
 		});
+	}
+
+	async function handleSignOut() {
+		await signOut();
+		goto('/');
 	}
 
 	const handleClick = (item: { id: string; label: string; icon: any; href?: string }) => {
@@ -152,10 +157,16 @@
 								</Sidebar.MenuItem>
 							</PopoverTrigger>
 							<PopoverContent class="w-64 rounded-xl p-2" side={!isMobile ? 'right' : 'bottom'}>
-								<p class="px-3 py-1.5">
-									<span class="text-sm font-medium">Logged in as "{$USER_DATA?.name}"</span>
-									<span class="text-sm text-muted-foreground">{$USER_DATA?.email}</span>
-								</p>
+								{#if $USER_DATA}
+									<p class="px-3 py-1.5">
+										<span class="text-sm font-medium">Logged in as "{$USER_DATA?.name}"</span>
+										<span class="text-sm text-muted-foreground">{$USER_DATA?.email}</span>
+									</p>
+								{:else}
+									<p class="px-3 py-1.5">
+										<span class="text-sm font-medium">Sign in to unlock all features</span>
+									</p>
+								{/if}
 								<div class="flex flex-col">
 									<button
 										class="flex w-full items-center gap-2 rounded-md p-3 text-sm font-medium transition-colors hover:bg-sidebar-accent"
@@ -173,29 +184,41 @@
 											</div>
 										{/if}
 									</button>
-									<button
-										onclick={() => goto('/domains/list')}
-										class="flex w-full items-center gap-2 rounded-md p-3 text-sm font-medium transition-colors hover:bg-sidebar-accent"
-									>
-										<Dns class="h-4 w-4" />
-										<span class="label font-medium">My Domains</span>
-									</button>
-
-									<button
-										onclick={() => goto('/settings')}
-										class="flex w-full items-center gap-2 rounded-md p-3 text-sm font-medium transition-colors hover:bg-sidebar-accent"
-									>
-										<Settings class="h-4 w-4" />
-										<span class="label font-medium">Settings</span>
-									</button>
-
-									{#if $USER_DATA?.isAdmin}
+									{#if $USER_DATA}
 										<button
-											onclick={() => goto('/admin/domains')}
+											onclick={() => goto('/domains/list')}
 											class="flex w-full items-center gap-2 rounded-md p-3 text-sm font-medium transition-colors hover:bg-sidebar-accent"
 										>
 											<Dns class="h-4 w-4" />
-											<span class="label font-medium">Verification Center</span>
+											<span class="label font-medium">My Domains</span>
+										</button>
+
+										<button
+											onclick={() => goto('/settings')}
+											class="flex w-full items-center gap-2 rounded-md p-3 text-sm font-medium transition-colors hover:bg-sidebar-accent"
+										>
+											<Settings class="h-4 w-4" />
+											<span class="label font-medium">Settings</span>
+										</button>
+
+										{#if $USER_DATA?.isAdmin}
+											<button
+												onclick={() => goto('/admin/domains')}
+												class="flex w-full items-center gap-2 rounded-md p-3 text-sm font-medium transition-colors hover:bg-sidebar-accent"
+											>
+												<Dns class="h-4 w-4" />
+												<span class="label font-medium">Verification Center</span>
+											</button>
+										{/if}
+
+										<div class="my-2 border-t"></div>
+
+										<button
+											onclick={handleSignOut}
+											class="flex w-full items-center gap-2 rounded-md p-3 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
+										>
+											<SignIn class="h-4 w-4" />
+											<span class="label font-medium">Sign out</span>
 										</button>
 									{/if}
 								</div>

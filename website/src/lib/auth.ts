@@ -23,7 +23,7 @@ if (!PUBLIC_PRODUCT_ID_10000) throw new Error('PUBLIC_PRODUCT_ID_10000 is not se
 if (!PUBLIC_PRODUCT_ID_50000) throw new Error('PUBLIC_PRODUCT_ID_50000 is not set');
 if (!PUBLIC_PRODUCT_ID_100000) throw new Error('PUBLIC_PRODUCT_ID_100000 is not set');
 
-const client = new Polar({
+export const polarClient = new Polar({
     accessToken: env.POLAR_ACCESS_TOKEN,
     server: 'sandbox'
 });
@@ -48,7 +48,7 @@ export const auth = betterAuth({
             }
         }),
         polar({
-            client,
+            client: polarClient,
             createCustomerOnSignUp: true,
             // Enable customer portal
             enableCustomerPortal: true, // Deployed under /portal for authenticated users

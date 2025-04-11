@@ -2,12 +2,64 @@ import { error } from '@sveltejs/kit';
 import Groq from 'groq-sdk';
 import { GROQ_API_KEY } from '$env/static/private';
 import { getFavicon } from '$lib/utils';
+import { eq, and, sql } from 'drizzle-orm';
+import { db } from '$lib/server/db';
+import { dailyMessageUsage } from '$lib/server/schema';
+import { auth } from '$lib/auth';
+import { checkPremiumStatus } from '$lib/server/authHelper';
 
 const groq = new Groq({
     apiKey: GROQ_API_KEY
 });
 
-export async function POST({ request, url }) {
+function formatDate(date: Date): string {
+    return date.toISOString();
+}
+
+export async function POST({ request, url, locals }) {
+    const session = await auth.api.getSession({
+        headers: request.headers
+    });
+
+    if (!session?.user) {
+        throw error(401, 'Not authenticated');
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const formattedDate = formatDate(today);
+
+    let usage = await db.query.dailyMessageUsage.findFirst({
+        where: and(
+            eq(dailyMessageUsage.userId, session.user.id),
+            eq(dailyMessageUsage.date, formattedDate)
+        )
+    });
+    const isPremium = await checkPremiumStatus(session.user.email);
+
+    const messageLimit = isPremium ? 100 : 5;
+
+    usage = (await db
+        .insert(dailyMessageUsage)
+        .values({
+            userId: session.user.id,
+            date: formattedDate,
+            count: 1
+        })
+        .onConflictDoUpdate({
+            target: [dailyMessageUsage.userId, dailyMessageUsage.date],
+            set: {
+                count: sql`${dailyMessageUsage.count} + 1`,
+                updatedAt: new Date()
+            },
+            where: sql`${dailyMessageUsage.count} < ${messageLimit}`
+        })
+        .returning())[0];
+
+    if (!usage) {
+        throw error(429, 'Daily message limit reached');
+    }
+
     const { messages } = await request.json();
 
     if (!messages?.length) {
@@ -203,4 +255,40 @@ Bliptext is a platform where users can edit a word every 30 sec. The point of Bl
             'Content-Encoding': 'none'
         }
     });
+}
+
+export async function GET({ request }) {
+    const session = await auth.api.getSession({
+        headers: request.headers
+    });
+
+    if (!session?.user) {
+        throw error(401, 'Not authenticated');
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const formattedDate = formatDate(today);
+
+    const usage = await db.query.dailyMessageUsage.findFirst({
+        where: and(
+            eq(dailyMessageUsage.userId, session.user.id),
+            eq(dailyMessageUsage.date, formattedDate)
+        )
+    });
+
+    const isPremium = await checkPremiumStatus(session.user.email);
+
+    const messageLimit = isPremium ? 100 : 5;
+    const messagesUsed = usage?.count || 0;
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    return new Response(JSON.stringify({
+        limit: messageLimit,
+        used: messagesUsed,
+        remaining: messageLimit - messagesUsed,
+        resetsAt: tomorrow.toISOString()
+    }));
 }

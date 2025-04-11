@@ -15,6 +15,7 @@
 		TooltipProvider,
 		TooltipTrigger
 	} from '$lib/components/ui/tooltip';
+	import { USER_DATA } from '$lib/stores/userdata';
 
 	type Site = {
 		domain: string;
@@ -79,6 +80,10 @@
 
 	// --- Placeholder Voting Logic ---
 	async function handleVote(siteDomain: string, voteType: 'up' | 'down') {
+		if (!$USER_DATA) {
+			toast.error('Please sign in to vote');
+			return;
+		}
 		const domain = getCleanDomain(siteDomain);
 		const site = sites.find((s) => s.domain === siteDomain);
 		if (!site) return;
@@ -170,8 +175,8 @@
 								<TooltipTrigger class="overflow-hidden rounded-full">
 									<Star class="h-5 w-5 fill-primary text-primary" />
 								</TooltipTrigger>
-								<TooltipContent class="w-60">
-									<p>Submitted by a Premium member.</p>
+								<TooltipContent class="w-40">
+									<p>Chosen by Vyntr staff</p>
 								</TooltipContent>
 							</Tooltip>
 						</div>

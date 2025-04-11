@@ -12,7 +12,6 @@ import { apiusage, apikey, searchQueries, userPreferences } from '$lib/server/sc
 import { eq, and, sql } from 'drizzle-orm';
 import { SEARCH_ENDPOINT } from '$env/static/private';
 import { getFavicon } from '$lib/utils';
-import { BANGS } from '$lib/bangs';
 
 async function fetchSearchResults(query: string, language: string = 'en') {
     try {

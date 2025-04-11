@@ -3,6 +3,8 @@
 	import { ScrollArea } from '$lib/components/ui/scroll-area';
 	import { ArrowUp } from 'lucide-svelte';
 	import { Popover, PopoverContent, PopoverTrigger } from '$lib/components/ui/popover';
+	import { onMount } from 'svelte';
+    import AuthGate from '$lib/components/self/AuthGate.svelte';
 
 	type Source = {
 		title: string;
@@ -22,15 +24,58 @@
 
 	let messages: MessageWithSources[] = $state([]);
 	let inputMessage = $state('');
-	let scrollArea: ScrollArea | null = $state(null);
 	let lastMessageElement: HTMLDivElement | null = $state(null);
 	let textareaElement: HTMLTextAreaElement;
-	let expandedSourceIndex: number | null = $state(null);
+	let messageUsage = $state({ limit: 5, used: 0, remaining: 5, resetsAt: '' });
+	let timeUntilReset = $state('');
+
+	function getResetTime(isoString: string) {
+		const date = new Date(isoString);
+		return date.toLocaleTimeString(undefined, { 
+			hour: 'numeric', 
+			minute: '2-digit',
+			hour12: true 
+		});
+	}
+
+	function updateCountdown(resetTime: string) {
+		const now = new Date();
+		const reset = new Date(resetTime);
+		const diff = reset.getTime() - now.getTime();
+		
+		if (diff <= 0) {
+			timeUntilReset = '';
+			return;
+		}
+
+		const hours = Math.floor(diff / (1000 * 60 * 60));
+		const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+		timeUntilReset = `(${hours}h ${minutes}m)`;
+	}
+
+	async function fetchMessageUsage() {
+		const response = await fetch('/api/chat');
+		if (response.ok) {
+			messageUsage = await response.json();
+		}
+	}
 
 	$effect(() => {
 		if (lastMessageElement) {
 			lastMessageElement.scrollIntoView({ behavior: 'smooth' });
 		}
+	});
+
+	$effect(() => {
+		if (messageUsage.resetsAt) {
+			updateCountdown(messageUsage.resetsAt);
+			const interval = setInterval(() => updateCountdown(messageUsage.resetsAt), 60000); // Update every minute
+			return () => clearInterval(interval);
+		}
+	});
+
+	onMount(() => {
+		fetchMessageUsage();
 	});
 
 	function cleanMessageForAPI(message: MessageWithSources) {
@@ -101,6 +146,8 @@
 		} catch (error) {
 			console.error('Chat error:', error);
 			messages[assistantMessageIndex].content = 'Sorry, something went wrong. Please try again.';
+		} finally {
+			await fetchMessageUsage();
 		}
 	}
 
@@ -136,215 +183,227 @@
 	}
 </script>
 
-<div class="relative flex h-screen max-h-screen flex-col">
-	<main class="flex-1 overflow-hidden">
-		<ScrollArea class="h-full" bind:this={scrollArea}>
-			<div class="mx-auto mt-8 max-w-3xl space-y-4 px-4">
-				{#each messages as message, index}
-					{#if index === messages.length - 1}
-						<div
-							bind:this={lastMessageElement}
-							class="flex gap-3 {message.role === 'user'
-								? 'ml-auto w-[85%] md:w-[80%]'
-								: 'w-[85%] md:w-[80%]'} rounded-xl bg-card p-4 shadow-custom-inset"
-						>
-							<div class="flex-1">
-								{#if message.role === 'assistant'}
-									<div class="mb-1 text-sm font-medium text-primary">Yappatron</div>
-								{/if}
-								<p class="whitespace-pre-line text-foreground">{message.content}</p>
+<AuthGate
+    title="Welcome to Yappatron"
+    description="Sign in to start chatting with our AI assistant. Free users get 5 messages per day!"
+>
+    <div class="relative flex h-screen max-h-screen flex-col">
+        <main class="flex-1 overflow-hidden">
+            <ScrollArea class="h-full">
+                <div class="mx-auto mt-8 max-w-3xl space-y-4 px-4">
+                    {#each messages as message, index}
+                        {#if index === messages.length - 1}
+                            <div
+                                bind:this={lastMessageElement}
+                                class="flex gap-3 {message.role === 'user'
+                                    ? 'ml-auto w-[85%] md:w-[80%]'
+                                    : 'w-[85%] md:w-[80%]'} rounded-xl bg-card p-4 shadow-custom-inset"
+                            >
+                                <div class="flex-1">
+                                    {#if message.role === 'assistant'}
+                                        <div class="mb-1 text-sm font-medium text-primary">Yappatron</div>
+                                    {/if}
+                                    <p class="whitespace-pre-line text-foreground">{message.content}</p>
 
-								{#if message.role === 'assistant' && message.sources}
-									<Popover>
-										<PopoverTrigger>
-											<div class="mt-2 inline-flex items-center">
-												<div class="flex -space-x-2">
-													{#if message.sources.bliptext}
-														<img
-															src={message.sources.bliptext.favicon}
-															alt="Bliptext"
-															class="h-5 w-5 rounded-full ring-2 ring-background"
-														/>
-													{/if}
-													{#each message.sources.web.slice(0, 2) as source}
-														<img
-															src={source.favicon}
-															alt={source.title}
-															class="h-5 w-5 rounded-full ring-2 ring-background"
-														/>
-													{/each}
-												</div>
-												<span class="ml-2 text-sm text-muted-foreground">sources</span>
-											</div>
-										</PopoverTrigger>
-										<PopoverContent class="w-80 rounded-xl p-2" side="top">
-											<div class="flex flex-col">
-												{#if message.sources.bliptext}
-													<a
-														href={message.sources.bliptext.url}
-														target="_blank"
-														rel="noopener noreferrer"
-														class="flex flex-col gap-1 rounded-md p-3 text-sm transition-colors hover:bg-sidebar-accent"
-													>
-														<span class="font-medium">{message.sources.bliptext.title}</span>
-														<span class="text-muted-foreground"
-															>{message.sources.bliptext.preview || 'From Bliptext'}</span
-														>
-														<div class="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-															<img
-																src={message.sources.bliptext.favicon}
-																alt="Bliptext"
-																class="h-4 w-4"
-															/>
-															{getDomainFromUrl(message.sources.bliptext.url)}
-														</div>
-													</a>
-												{/if}
-												{#each message.sources.web as source}
-													<a
-														href={source.url}
-														target="_blank"
-														rel="noopener noreferrer"
-														class="flex flex-col gap-1 rounded-md p-3 text-sm transition-colors hover:bg-sidebar-accent"
-													>
-														<span class="font-medium">{source.title}</span>
-														<span class="text-muted-foreground">{getPreview(source.preview)}</span>
-														<div class="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-															<img src={source.favicon} alt={source.title} class="h-4 w-4" />
-															{getDomainFromUrl(source.url)}
-														</div>
-													</a>
-												{/each}
-											</div>
-										</PopoverContent>
-									</Popover>
-								{/if}
-							</div>
-						</div>
-					{:else}
-						<div
-							class="flex gap-3 {message.role === 'user'
-								? 'ml-auto w-[85%] md:w-[80%]'
-								: 'w-[85%] md:w-[80%]'} rounded-xl bg-card p-4 shadow-custom-inset"
-						>
-							<div class="flex-1">
-								{#if message.role === 'assistant'}
-									<div class="mb-1 text-sm font-medium text-primary">Yappatron</div>
-								{/if}
-								<p class="whitespace-pre-line text-foreground">{message.content}</p>
+                                    {#if message.role === 'assistant' && message.sources}
+                                        <Popover>
+                                            <PopoverTrigger>
+                                                <div class="mt-2 inline-flex items-center">
+                                                    <div class="flex -space-x-2">
+                                                        {#if message.sources.bliptext}
+                                                            <img
+                                                                src={message.sources.bliptext.favicon}
+                                                                alt="Bliptext"
+                                                                class="h-5 w-5 rounded-full ring-2 ring-background"
+                                                            />
+                                                        {/if}
+                                                        {#each message.sources.web.slice(0, 2) as source}
+                                                            <img
+                                                                src={source.favicon}
+                                                                alt={source.title}
+                                                                class="h-5 w-5 rounded-full ring-2 ring-background"
+                                                            />
+                                                        {/each}
+                                                    </div>
+                                                    <span class="ml-2 text-sm text-muted-foreground">sources</span>
+                                                </div>
+                                            </PopoverTrigger>
+                                            <PopoverContent class="w-80 rounded-xl p-2" side="top">
+                                                <div class="flex flex-col">
+                                                    {#if message.sources.bliptext}
+                                                        <a
+                                                            href={message.sources.bliptext.url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            class="flex flex-col gap-1 rounded-md p-3 text-sm transition-colors hover:bg-sidebar-accent"
+                                                        >
+                                                            <span class="font-medium">{message.sources.bliptext.title}</span>
+                                                            <span class="text-muted-foreground"
+                                                                >{message.sources.bliptext.preview || 'From Bliptext'}</span
+                                                            >
+                                                            <div class="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                                                                <img
+                                                                    src={message.sources.bliptext.favicon}
+                                                                    alt="Bliptext"
+                                                                    class="h-4 w-4"
+                                                                />
+                                                                {getDomainFromUrl(message.sources.bliptext.url)}
+                                                            </div>
+                                                        </a>
+                                                    {/if}
+                                                    {#each message.sources.web as source}
+                                                        <a
+                                                            href={source.url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            class="flex flex-col gap-1 rounded-md p-3 text-sm transition-colors hover:bg-sidebar-accent"
+                                                        >
+                                                            <span class="font-medium">{source.title}</span>
+                                                            <span class="text-muted-foreground">{getPreview(source.preview)}</span>
+                                                            <div class="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                                                                <img src={source.favicon} alt={source.title} class="h-4 w-4" />
+                                                                {getDomainFromUrl(source.url)}
+                                                            </div>
+                                                        </a>
+                                                    {/each}
+                                                </div>
+                                            </PopoverContent>
+                                        </Popover>
+                                    {/if}
+                                </div>
+                            </div>
+                        {:else}
+                            <div
+                                class="flex gap-3 {message.role === 'user'
+                                    ? 'ml-auto w-[85%] md:w-[80%]'
+                                    : 'w-[85%] md:w-[80%]'} rounded-xl bg-card p-4 shadow-custom-inset"
+                            >
+                                <div class="flex-1">
+                                    {#if message.role === 'assistant'}
+                                        <div class="mb-1 text-sm font-medium text-primary">Yappatron</div>
+                                    {/if}
+                                    <p class="whitespace-pre-line text-foreground">{message.content}</p>
 
-								{#if message.role === 'assistant' && message.sources}
-									<Popover>
-										<PopoverTrigger>
-											<div class="mt-2 inline-flex items-center">
-												<div class="flex -space-x-2">
-													{#if message.sources.bliptext}
-														<img
-															src={message.sources.bliptext.favicon}
-															alt="Bliptext"
-															class="h-5 w-5 rounded-full ring-2 ring-background"
-														/>
-													{/if}
-													{#each message.sources.web.slice(0, 2) as source}
-														<img
-															src={source.favicon}
-															alt={source.title}
-															class="h-5 w-5 rounded-full ring-2 ring-background"
-														/>
-													{/each}
-												</div>
-												<span class="ml-2 text-sm text-muted-foreground">sources</span>
-											</div>
-										</PopoverTrigger>
-										<PopoverContent class="w-80 rounded-xl p-2" side="top">
-											<div class="flex flex-col">
-												{#if message.sources.bliptext}
-													<a
-														href={message.sources.bliptext.url}
-														target="_blank"
-														rel="noopener noreferrer"
-														class="flex flex-col gap-1 rounded-md p-3 text-sm transition-colors hover:bg-sidebar-accent"
-													>
-														<span class="font-medium">{message.sources.bliptext.title}</span>
-														<span class="text-muted-foreground"
-															>{message.sources.bliptext.preview || 'From Bliptext'}</span
-														>
-														<div class="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-															<img
-																src={message.sources.bliptext.favicon}
-																alt="Bliptext"
-																class="h-4 w-4"
-															/>
-															{getDomainFromUrl(message.sources.bliptext.url)}
-														</div>
-													</a>
-												{/if}
-												{#each message.sources.web as source}
-													<a
-														href={source.url}
-														target="_blank"
-														rel="noopener noreferrer"
-														class="flex flex-col gap-1 rounded-md p-3 text-sm transition-colors hover:bg-sidebar-accent"
-													>
-														<span class="font-medium">{source.title}</span>
-														<span class="text-muted-foreground">{getPreview(source.preview)}</span>
-														<div class="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-															<img src={source.favicon} alt={source.title} class="h-4 w-4" />
-															{getDomainFromUrl(source.url)}
-														</div>
-													</a>
-												{/each}
-											</div>
-										</PopoverContent>
-									</Popover>
-								{/if}
-							</div>
-						</div>
-					{/if}
-				{/each}
+                                    {#if message.role === 'assistant' && message.sources}
+                                        <Popover>
+                                            <PopoverTrigger>
+                                                <div class="mt-2 inline-flex items-center">
+                                                    <div class="flex -space-x-2">
+                                                        {#if message.sources.bliptext}
+                                                            <img
+                                                                src={message.sources.bliptext.favicon}
+                                                                alt="Bliptext"
+                                                                class="h-5 w-5 rounded-full ring-2 ring-background"
+                                                            />
+                                                        {/if}
+                                                        {#each message.sources.web.slice(0, 2) as source}
+                                                            <img
+                                                                src={source.favicon}
+                                                                alt={source.title}
+                                                                class="h-5 w-5 rounded-full ring-2 ring-background"
+                                                            />
+                                                        {/each}
+                                                    </div>
+                                                    <span class="ml-2 text-sm text-muted-foreground">sources</span>
+                                                </div>
+                                            </PopoverTrigger>
+                                            <PopoverContent class="w-80 rounded-xl p-2" side="top">
+                                                <div class="flex flex-col">
+                                                    {#if message.sources.bliptext}
+                                                        <a
+                                                            href={message.sources.bliptext.url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            class="flex flex-col gap-1 rounded-md p-3 text-sm transition-colors hover:bg-sidebar-accent"
+                                                        >
+                                                            <span class="font-medium">{message.sources.bliptext.title}</span>
+                                                            <span class="text-muted-foreground"
+                                                                >{message.sources.bliptext.preview || 'From Bliptext'}</span
+                                                            >
+                                                            <div class="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                                                                <img
+                                                                    src={message.sources.bliptext.favicon}
+                                                                    alt="Bliptext"
+                                                                    class="h-4 w-4"
+                                                                />
+                                                                {getDomainFromUrl(message.sources.bliptext.url)}
+                                                            </div>
+                                                        </a>
+                                                    {/if}
+                                                    {#each message.sources.web as source}
+                                                        <a
+                                                            href={source.url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            class="flex flex-col gap-1 rounded-md p-3 text-sm transition-colors hover:bg-sidebar-accent"
+                                                        >
+                                                            <span class="font-medium">{source.title}</span>
+                                                            <span class="text-muted-foreground">{getPreview(source.preview)}</span>
+                                                            <div class="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                                                                <img src={source.favicon} alt={source.title} class="h-4 w-4" />
+                                                                {getDomainFromUrl(source.url)}
+                                                            </div>
+                                                        </a>
+                                                    {/each}
+                                                </div>
+                                            </PopoverContent>
+                                        </Popover>
+                                    {/if}
+                                </div>
+                            </div>
+                        {/if}
+                    {/each}
 
-				{#if messages.length === 0}
-					<div class="flex h-[calc(100vh-12rem)] items-center justify-center">
-						<div class="text-center text-muted-foreground">
-							<h3 class="text-lg font-semibold">Welcome to Vyntr Yappatron</h3>
-							<p class="text-sm">Start a conversation by typing a message below.</p>
-						</div>
-					</div>
-				{/if}
-			</div>
+                    {#if messages.length === 0}
+                        <div class="flex h-[calc(100vh-12rem)] items-center justify-center">
+                            <div class="text-center text-muted-foreground">
+                                <h3 class="text-lg font-semibold">Welcome to Vyntr Yappatron</h3>
+                                <p class="text-sm">Start a conversation by typing a message below.</p>
+                            </div>
+                        </div>
+                    {/if}
+                </div>
 
-			<div class="h-28"></div>
-		</ScrollArea>
-	</main>
+                <div class="h-28"></div>
+            </ScrollArea>
+        </main>
 
-	<div class="pointer-events-none absolute bottom-0 left-0 right-0 mb-4">
-		<div class="mx-auto max-w-3xl px-4">
-			<form class="pointer-events-auto relative flex" onsubmit={handleSubmit}>
-				<div
-					class="flex w-full items-end overflow-hidden rounded-[1.5rem] border bg-card shadow-custom-inset drop-shadow-md transition-colors focus-within:border-primary/80 hover:bg-card-hover"
-				>
-					<textarea
-						bind:this={textareaElement}
-						placeholder="Type your message..."
-						bind:value={inputMessage}
-						rows="1"
-						onkeydown={handleKeyDown}
-						class="flex w-full resize-none overflow-y-hidden bg-transparent px-6 py-4 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50
-						[&::-webkit-scrollbar-thumb]:rounded-full
-						[&::-webkit-scrollbar-thumb]:bg-muted-foreground/20
-						[&::-webkit-scrollbar-track]:rounded-full
-						[&::-webkit-scrollbar]:mr-2
-						[&::-webkit-scrollbar]:w-2"
-						style="min-height: 56px; max-height: 200px;"
-						oninput={handleTextareaInput}
-					></textarea>
-					<Button type="submit" size="icon" class="group mb-2 mr-2 aspect-square rounded-full">
-						<ArrowUp
-							class="h-6 w-6 transition-transform duration-200 ease-out group-hover:-translate-y-0.5"
-						/>
-					</Button>
-				</div>
-			</form>
-		</div>
-	</div>
-</div>
+        <div class="pointer-events-none absolute bottom-0 left-0 right-0 mb-4">
+            <div class="mx-auto max-w-3xl px-4">
+                <div class="mb-2 text-center text-sm text-muted-foreground">
+                    {messageUsage.remaining} message{messageUsage.remaining === 1 ? '' : 's'} remaining today
+                    {#if messageUsage.remaining <= 0}
+                        · Resets at {getResetTime(messageUsage.resetsAt)} {timeUntilReset}
+                    {/if}
+                </div>
+                <form class="pointer-events-auto relative flex" onsubmit={handleSubmit}>
+                    <div
+                        class="flex w-full items-end overflow-hidden rounded-[1.5rem] border bg-card shadow-custom-inset drop-shadow-md transition-colors focus-within:border-primary/80 hover:bg-card-hover"
+                    >
+                        <textarea
+                            bind:this={textareaElement}
+                            placeholder={messageUsage.remaining <= 0 ? "Message limit reached" : "Type your message..."}
+                            bind:value={inputMessage}
+                            rows="1"
+                            onkeydown={handleKeyDown}
+                            disabled={messageUsage.remaining <= 0}
+                            class="flex w-full resize-none overflow-y-hidden bg-transparent px-6 py-4 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50
+                            [&::-webkit-scrollbar-thumb]:rounded-full
+                            [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20
+                            [&::-webkit-scrollbar-track]:rounded-full
+                            [&::-webkit-scrollbar]:mr-2
+                            [&::-webkit-scrollbar]:w-2"
+                            style="min-height: 56px; max-height: 200px;"
+                            oninput={handleTextareaInput}
+                        ></textarea>
+                        <Button type="submit" size="icon" disabled={messageUsage.remaining <= 0} class="group mb-2 mr-2 aspect-square rounded-full">
+                            <ArrowUp
+                                class="h-6 w-6 transition-transform duration-200 ease-out group-hover:-translate-y-0.5"
+                            />
+                        </Button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</AuthGate>

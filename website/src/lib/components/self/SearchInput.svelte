@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/stores';
 	import { Search } from 'lucide-svelte';
 	import SearchIcon from './SearchIcon.svelte';
 	import TrailingButtons from './TrailingButtons.svelte';
@@ -19,7 +20,7 @@
 
 	let {
 		value = $bindable(),
-		enableAutocomplete = $bindable(true),
+		enableAutocomplete = $bindable($page.data.preferences?.autocomplete ?? true),
 		showTrailingButtons = true,
 		className = $bindable('')
 	} = $props();
@@ -32,7 +33,6 @@
 	let inputRef: HTMLInputElement | null = $state(null);
 
 	let suggestions = $state<string[]>([]);
-	let isLoading = $state(false);
 
 	const fetchSuggestions = debounce(async (value: string) => {
 		if (!value || value.length < 2 || !enableAutocomplete) {
@@ -40,7 +40,6 @@
 			return;
 		}
 
-		isLoading = true;
 		try {
 			const response = await fetch(`/api/autocomplete?q=${encodeURIComponent(value)}`);
 			if (response.ok) {
@@ -48,8 +47,6 @@
 			}
 		} catch (err) {
 			console.error('Failed to fetch suggestions:', err);
-		} finally {
-			isLoading = false;
 		}
 	}, 150);
 
@@ -71,9 +68,6 @@
 		if (inputRef) {
 			inputRef.focus();
 			isFocused = true;
-		}
-		if (searchValue !== value) {
-			enableAutocomplete = true;
 		}
 	});
 
@@ -142,7 +136,7 @@
 		/>
 		{#if showSuggestions}
 			<div
-				class="absolute left-0 right-0 top-full z-50 rounded-b-[1.5rem] border-x border-b bg-card-hover drop-shadow-md border-primary/80"
+				class="absolute left-0 right-0 top-full z-50 rounded-b-[1.5rem] border-x border-b border-primary/80 bg-card-hover drop-shadow-md"
 			>
 				<Separator class="mx-auto w-[95%]" />
 				<div class="max-h-[500px] overflow-y-auto py-2">

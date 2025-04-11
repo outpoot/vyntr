@@ -9,7 +9,7 @@ export const load: PageServerLoad = async (event) => {
     const session = await auth.api.getSession({ headers: event.request.headers });
 
     if (!session?.user) {
-        throw error(401, 'Not authenticated');
+        return { apiKey: null, usageData: {} };
     }
 
     const [key] = await auth.api.listApiKeys({ headers: event.request.headers });

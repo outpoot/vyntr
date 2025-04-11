@@ -1,4 +1,4 @@
-import { requireAdmin } from '$lib/server/admin';
+import { requireAdmin } from '$lib/server/authHelper';
 import { db } from '$lib/server/db';
 import { website } from '$lib/server/schema';
 import { eq } from 'drizzle-orm';

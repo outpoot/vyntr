@@ -1,4 +1,4 @@
-import { redirect } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { website } from '$lib/server/schema';
 import { eq } from 'drizzle-orm';
@@ -11,7 +11,7 @@ export async function load({ request, fetch }) {
     });
 
     if (!session?.user) {
-        throw redirect(302, '/login');
+        throw error(401, 'Unauthorized');
     }
 
     const [domains, subscriptionResponse] = await Promise.all([
