@@ -229,7 +229,7 @@
 	}
 
 	:global(.menu-button:hover) {
-		@apply bg-border/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)];
+		@apply bg-border/10 shadow-custom-inset;
 	}
 
 	:global(.menu-button:hover:not(.active) .icon) {

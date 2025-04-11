@@ -130,7 +130,7 @@
 			bind:this={inputRef}
 			placeholder="How do I cook..."
 			class={cn(
-				'flex h-11 w-full border bg-card px-3 py-2 pl-12 text-base shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md transition-colors  placeholder:text-muted focus-within:border-primary/80 hover:bg-card-hover focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:h-12 sm:pl-12 sm:text-lg md:h-14 md:pl-14',
+				'flex h-11 w-full border bg-card px-3 py-2 pl-12 text-base shadow-custom-inset drop-shadow-md transition-colors  placeholder:text-muted focus-within:border-primary/80 hover:bg-card-hover focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:h-12 sm:pl-12 sm:text-lg md:h-14 md:pl-14',
 				showSuggestions ? 'rounded-b-none rounded-t-[1.5rem] border-b-0' : 'rounded-[1.5rem]'
 			)}
 			onfocus={() => {
@@ -142,7 +142,7 @@
 		/>
 		{#if showSuggestions}
 			<div
-				class="absolute left-0 right-0 top-full z-50 rounded-b-[1.5rem] border-x border-b bg-card drop-shadow-md"
+				class="absolute left-0 right-0 top-full z-50 rounded-b-[1.5rem] border-x border-b bg-card-hover drop-shadow-md border-primary/80"
 			>
 				<Separator class="mx-auto w-[95%]" />
 				<div class="max-h-[500px] overflow-y-auto py-2">

@@ -54,7 +54,7 @@
 
 	<div class="mt-16 grid gap-8 lg:grid-cols-2">
 		<Card
-			class="relative overflow-hidden rounded-xl p-8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)]"
+			class="relative overflow-hidden rounded-xl p-8 shadow-custom-inset"
 		>
 			<div class="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-primary/10 blur-3xl"></div>
 			<div class="relative">
@@ -85,7 +85,7 @@
 		</Card>
 
 		<Card
-			class="relative overflow-hidden rounded-xl border-primary bg-primary/5 p-8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] "
+			class="relative overflow-hidden rounded-xl border-primary bg-primary/5 p-8 shadow-custom-inset "
 		>
 			<div class="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-primary/20 blur-3xl"></div>
 			<div class="relative">

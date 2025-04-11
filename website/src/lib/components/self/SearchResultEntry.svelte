@@ -21,7 +21,7 @@
 </script>
 
 <div
-	class="relative overflow-hidden rounded-xl border bg-card p-4 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md"
+	class="relative overflow-hidden rounded-xl border bg-card p-4 shadow-custom-inset drop-shadow-md"
 >
 	<div class="flex items-start justify-between gap-2">
 		<a href={result.url} class="group inline-flex min-w-0 flex-col">

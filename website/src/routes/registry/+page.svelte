@@ -154,8 +154,8 @@
 
 				<div
 					class="group relative rounded-xl border {site.isFeatured
-						? 'bg-card border-primary'
-						: ''} shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md transition-shadow hover:shadow-sm"
+						? 'border-primary bg-card'
+						: 'border-border bg-card'} shadow-custom-inset drop-shadow-md transition-shadow hover:shadow-sm"
 				>
 					{#if site.isFeatured}
 						<div class="absolute inset-0 overflow-hidden rounded-xl">
@@ -177,7 +177,7 @@
 						</div>
 					{/if}
 
-					<div class="relative flex flex-col {site.isFeatured ? '' : 'rounded-xl bg-card'} p-4">
+					<div class="relative flex flex-col p-4">
 						<div class="flex flex-1 flex-col gap-3">
 							<div class="flex items-start justify-between gap-2">
 								<a

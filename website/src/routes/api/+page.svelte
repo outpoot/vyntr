@@ -82,7 +82,7 @@
 	</div>
 
 	<div class="grid gap-6 lg:grid-cols-2">
-		<Card class="p-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md">
+		<Card class="p-6 shadow-custom-inset drop-shadow-md">
 			<div class="flex flex-col gap-2">
 				<div class="flex items-center gap-2">
 					<Coins class="h-5 w-5 text-primary" />
@@ -124,7 +124,7 @@
 			</div>
 		</Card>
 
-		<Card class="p-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md">
+		<Card class="p-6 shadow-custom-inset drop-shadow-md">
 			<div class="flex flex-col gap-4">
 				<div class="flex items-center justify-between">
 					<div class="flex flex-col">
@@ -174,7 +174,7 @@
 		</Card>
 	</div>
 
-	<Card class="overflow-hidden p-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md">
+	<Card class="overflow-hidden p-6 shadow-custom-inset drop-shadow-md">
 		<div class="flex items-start justify-between">
 			<div>
 				<h2 class="text-xl font-bold">API Key</h2>
@@ -219,7 +219,7 @@
 		{/if}
 	</Card>
 
-	<Card class="overflow-hidden p-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md">
+	<Card class="overflow-hidden p-6 shadow-custom-inset drop-shadow-md">
 		<h2 class="text-xl font-bold">Documentation</h2>
 		<div class="mt-4 space-y-6">
 			<div class="flex flex-col gap-2">

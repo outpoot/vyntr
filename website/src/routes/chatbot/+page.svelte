@@ -146,7 +146,7 @@
 							bind:this={lastMessageElement}
 							class="flex gap-3 {message.role === 'user'
 								? 'ml-auto w-[85%] md:w-[80%]'
-								: 'w-[85%] md:w-[80%]'} rounded-xl bg-card p-4 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)]"
+								: 'w-[85%] md:w-[80%]'} rounded-xl bg-card p-4 shadow-custom-inset"
 						>
 							<div class="flex-1">
 								{#if message.role === 'assistant'}
@@ -225,7 +225,7 @@
 						<div
 							class="flex gap-3 {message.role === 'user'
 								? 'ml-auto w-[85%] md:w-[80%]'
-								: 'w-[85%] md:w-[80%]'} rounded-xl bg-card p-4 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)]"
+								: 'w-[85%] md:w-[80%]'} rounded-xl bg-card p-4 shadow-custom-inset"
 						>
 							<div class="flex-1">
 								{#if message.role === 'assistant'}
@@ -321,7 +321,7 @@
 		<div class="mx-auto max-w-3xl px-4">
 			<form class="pointer-events-auto relative flex" onsubmit={handleSubmit}>
 				<div
-					class="flex w-full items-end overflow-hidden rounded-[1.5rem] border bg-card shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md transition-colors focus-within:border-primary/80 hover:bg-card-hover"
+					class="flex w-full items-end overflow-hidden rounded-[1.5rem] border bg-card shadow-custom-inset drop-shadow-md transition-colors focus-within:border-primary/80 hover:bg-card-hover"
 				>
 					<textarea
 						bind:this={textareaElement}

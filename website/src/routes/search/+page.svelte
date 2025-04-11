@@ -35,10 +35,12 @@
 		mathResult = null;
 		timerSeconds = null;
 
-		const bangRedirect = handleBangQuery(query);
-		if (bangRedirect) {
-			window.location.href = bangRedirect;
-			return;
+		if (page.data.preferences.instantResults) {
+			const bangRedirect = handleBangQuery(query);
+			if (bangRedirect) {
+				window.location.href = bangRedirect;
+				return;
+			}
 		}
 
 		const timerDuration = parseTimerQuery(query);

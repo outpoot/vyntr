@@ -9,7 +9,7 @@
 </script>
 
 <div
-	class="relative mb-6 overflow-hidden rounded-xl border bg-card p-4 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md"
+	class="relative mb-6 overflow-hidden rounded-xl border bg-card p-4 shadow-custom-inset drop-shadow-md"
 >
 	<div class="flex items-start gap-4">
 		<div class="rounded-full bg-primary/50 p-2 transition-transform hover:scale-110">

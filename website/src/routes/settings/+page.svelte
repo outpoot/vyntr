@@ -11,7 +11,7 @@
 	import { Switch } from '$lib/components/ui/switch';
 
 	const buttonClass =
-		'border bg-card text-card-foreground shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] hover:bg-card-hover';
+		'border bg-card text-card-foreground shadow-custom-inset hover:bg-card-hover';
 
 	let { data } = $props();
 	let showDeleteConfirm = $state(false);
@@ -109,7 +109,7 @@
 		<p class="text-muted">Manage your account preferences</p>
 	</div>
 
-	<Card class="p-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md">
+	<Card class="p-6 shadow-custom-inset drop-shadow-md">
 		<div class="flex items-center gap-2">
 			<User class="h-5 w-5 text-primary" />
 			<h2 class="text-xl font-bold">Profile</h2>
@@ -126,7 +126,7 @@
 		</div>
 	</Card>
 
-	<Card class="p-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md">
+	<Card class="p-6 shadow-custom-inset drop-shadow-md">
 		<div class="flex items-center gap-2">
 			<CreditCard class="h-5 w-5 text-primary" />
 			<h2 class="text-xl font-bold">Subscription</h2>
@@ -143,7 +143,7 @@
 		</div>
 	</Card>
 
-	<Card class="p-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md">
+	<Card class="p-6 shadow-custom-inset drop-shadow-md">
 		<div class="flex items-center gap-2">
 			<Globe class="h-5 w-5 text-primary" />
 			<h2 class="text-xl font-bold">Search Preferences</h2>
@@ -167,7 +167,7 @@
 		</div>
 	</Card>
 
-	<Card class="p-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md">
+	<Card class="p-6 shadow-custom-inset drop-shadow-md">
 		<div class="flex items-center gap-2">
 			<Search class="h-5 w-5 text-primary" />
 			<h2 class="text-xl font-bold">Search Features</h2>
@@ -219,7 +219,7 @@
 		</div>
 	</Card>
 
-	<Card class="p-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md">
+	<Card class="p-6 shadow-custom-inset drop-shadow-md">
 		<div class="flex items-center gap-2">
 			<Shield class="h-5 w-5 text-primary" />
 			<h2 class="text-xl font-bold">Privacy & Data</h2>
