@@ -110,8 +110,8 @@
 	}
 </script>
 
-<div class="container mx-auto p-8">
-	<div class="mb-8">
+<div class="container mx-auto p-4 md:p-8">
+	<div class="mb-8 flex flex-col items-center justify-center">
 		<h1 class="text-3xl font-bold">Registry</h1>
 		<p class="text-muted">Discover and explore websites in our community</p>
 	</div>

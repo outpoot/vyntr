@@ -120,7 +120,7 @@
 </script>
 
 <div class="container mx-auto space-y-6 p-6">
-	<div class="flex items-center justify-between">
+	<div class="mb-8 flex flex-col items-center justify-center gap-2 sm:flex-row sm:items-center sm:justify-between">
 		<div class="space-y-1">
 			<Breadcrumb.Root>
 				<Breadcrumb.List class="text-muted">
@@ -134,22 +134,10 @@
 				</Breadcrumb.List>
 			</Breadcrumb.Root>
 			<h1 class="text-2xl font-bold">{data.domain.domain}</h1>
-			<div class="flex items-center gap-1 text-sm text-muted">
+			<div class="flex items-center justify-center gap-1 text-sm text-muted">
 				<Users class="h-4 w-4" />
 				<span>{stats}</span>
 			</div>
-		</div>
-		<div class="flex items-center gap-2">
-			<Button variant="outline" onclick={() => window.open(data.domain.domain, '_blank')}>
-				<Globe class="h-4 w-4" />
-				<span>Visit site</span>
-				<ArrowUpRight class="h-4 w-4" />
-			</Button>
-			{#if data.domain.status === 'unlisted'}
-				<Button onclick={handlePublish}>Publish site</Button>
-			{:else}
-				<Button variant="outline">Edit details</Button>
-			{/if}
 		</div>
 	</div>
 

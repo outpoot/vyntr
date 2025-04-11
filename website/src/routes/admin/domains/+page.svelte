@@ -48,12 +48,12 @@
 </script>
 
 <div class="container mx-auto p-8">
-	<div class="mb-8">
+	<div class="flex flex-col items-center justify-center">
 		<h1 class="text-3xl font-bold">Domain Review</h1>
 		<p class="text-muted">Review and manage domain submissions</p>
 	</div>
 
-	<div class="grid gap-6">
+	<div class="mt-4 grid gap-6">
 		{#if domains.length === 0}
 			<div class="rounded-lg border bg-card p-8 text-center">
 				<h3 class="text-lg font-semibold">No pending domains</h3>

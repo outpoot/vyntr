@@ -104,11 +104,9 @@
 </script>
 
 <div class="container mx-auto space-y-6 p-8">
-	<div class="flex items-center justify-between">
-		<div>
-			<h1 class="text-3xl font-bold">Settings</h1>
-			<p class="text-muted">Manage your account preferences</p>
-		</div>
+	<div class="flex flex-col items-center justify-center">
+		<h1 class="text-3xl font-bold">Settings</h1>
+		<p class="text-muted">Manage your account preferences</p>
 	</div>
 
 	<Card class="p-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md">
@@ -138,7 +136,7 @@
 				Current plan: <span class="font-medium">{$subscriptionStore.isActive ? 'Pro' : 'Free'}</span
 				>
 			</p>
-			<div class="space-x-4">
+			<div class="space-x-2">
 				<Button class={buttonClass} href="/api/auth/portal">Manage Subscription</Button>
 				<Button class={buttonClass} href="/api">View API Usage</Button>
 			</div>
@@ -252,7 +250,7 @@
 			<div class="flex items-center justify-between">
 				<div>
 					<Label class="text-sm font-medium">AI Personalization</Label>
-					<p class="text-sm text-muted">Allow Goon AI to learn from your interactions</p>
+					<p class="text-sm text-muted">Allow Yappatron AI to learn from your interactions</p>
 				</div>
 				<Switch
 					checked={aiPersonalization}

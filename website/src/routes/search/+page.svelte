@@ -7,6 +7,7 @@
 	import DetailsPanelDate from '$lib/components/self/DetailsPanelDate.svelte';
 	import DetailsPanelWord from '$lib/components/self/DetailsPanelWord.svelte';
 	import DetailsPanelCurrency from '$lib/components/self/DetailsPanelCurrency.svelte';
+	import { Label } from '$lib/components/ui/label';
 
 	import { isMathExpression, evaluateMathExpression } from '$lib/utils/math';
 	import { parseTimerQuery } from '$lib/utils/timer';
@@ -78,15 +79,26 @@
 	<title>{query} - Vyntr Search</title>
 </svelte:head>
 
-<div class="px-8">
+<div class="px-4 md:px-8">
+	<header class="mb-4 mt-2 flex h-10 items-center justify-center gap-1 md:hidden">
+		<img src="/favicon.svg" alt="Vyntr Logo" class="h-4 w-4" />
+		<Label class="montserrat-black text-3xl font-bold">Vyntr</Label>
+	</header>
+
 	<div class="mt-4 flex flex-col items-start gap-4">
 		<div class="w-full lg:w-[700px]">
 			<SearchInput bind:value={query} enableAutocomplete={false} showTrailingButtons={false} />
 		</div>
 
-		<div class="flex flex-row gap-4">
-			<div class="min-w-0 flex-1 lg:max-w-[700px]">
+		<div class="flex w-full flex-row gap-4">
+			<div class="w-full min-w-0 flex-1 lg:max-w-[700px]">
 				{#if !isLoading}
+					{#if searchData.bliptext && !searchData.unitConversion && !searchData.currency && !searchData.word && !searchData.date && timerSeconds === null && !mathResult}
+						<div class="mb-6 lg:hidden">
+							<DetailsPanelBliptext details={searchData.bliptext} />
+						</div>
+					{/if}
+
 					{#if searchData.unitConversion || searchData.currency || searchData.word || searchData.date || timerSeconds !== null || mathResult}
 						<div class="mb-6">
 							{#if searchData.unitConversion}
@@ -103,6 +115,12 @@
 								<DetailsPanelMath details={mathResult} />
 							{/if}
 						</div>
+
+						{#if searchData.bliptext}
+							<div class="mb-6 lg:hidden">
+								<DetailsPanelBliptext details={searchData.bliptext} />
+							</div>
+						{/if}
 					{/if}
 
 					<SearchResults results={searchData.web} />

@@ -4,6 +4,7 @@
 	import TrailingButtons from './TrailingButtons.svelte';
 	import { Separator } from '$lib/components/ui/separator';
 	import { cn } from '$lib/utils.js';
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 
 	function debounce<T extends (...args: any[]) => any>(
 		func: T,
@@ -114,21 +115,22 @@
 				break;
 		}
 	}
+	const isMobile = new IsMobile().current;
 </script>
 
 <form class="w-full {className}" onsubmit={handleSubmit}>
 	<div class="relative w-full">
 		<SearchIcon
 			bind:this={searchIcon}
-			size={24}
-			class="absolute left-5 top-1/2 z-20 h-6 w-6 -translate-y-1/2"
+			size={isMobile ? 20 : 24}
+			class="absolute left-4 top-1/2 z-20 h-5 w-5 -translate-y-1/2 md:left-5 md:h-6 md:w-6"
 		/>
 		<input
 			bind:value={searchValue}
 			bind:this={inputRef}
 			placeholder="How do I cook..."
 			class={cn(
-				'flex h-11 w-full border bg-card px-3 py-2 pl-14 text-base shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md  transition-colors placeholder:text-muted focus-within:border-primary/80 hover:bg-card-hover focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:h-12 sm:pl-16 sm:text-lg md:h-14',
+				'flex h-11 w-full border bg-card px-3 py-2 pl-12 text-base shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md transition-colors  placeholder:text-muted focus-within:border-primary/80 hover:bg-card-hover focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:h-12 sm:pl-12 sm:text-lg md:h-14 md:pl-14',
 				showSuggestions ? 'rounded-b-none rounded-t-[1.5rem] border-b-0' : 'rounded-[1.5rem]'
 			)}
 			onfocus={() => {

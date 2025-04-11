@@ -85,7 +85,7 @@
 						case 'status':
 							messages[assistantMessageIndex].content = data;
 							content = '';
-							isGenerating = data === 'Gooning...';
+							isGenerating = data === 'Yapping...';
 							break;
 						case 'content':
 							if (isGenerating) {
@@ -139,18 +139,18 @@
 <div class="relative flex h-screen max-h-screen flex-col">
 	<main class="flex-1 overflow-hidden">
 		<ScrollArea class="h-full" bind:this={scrollArea}>
-			<div class="mx-auto mt-8 max-w-3xl space-y-4">
+			<div class="mx-auto mt-8 max-w-3xl space-y-4 px-4">
 				{#each messages as message, index}
 					{#if index === messages.length - 1}
 						<div
 							bind:this={lastMessageElement}
 							class="flex gap-3 {message.role === 'user'
-								? 'ml-auto max-w-[80%]'
-								: ''} rounded-xl bg-card p-4 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)]"
+								? 'ml-auto w-[85%] md:w-[80%]'
+								: 'w-[85%] md:w-[80%]'} rounded-xl bg-card p-4 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)]"
 						>
 							<div class="flex-1">
 								{#if message.role === 'assistant'}
-									<div class="mb-1 text-sm font-medium text-primary">Goon</div>
+									<div class="mb-1 text-sm font-medium text-primary">Yappatron</div>
 								{/if}
 								<p class="whitespace-pre-line text-foreground">{message.content}</p>
 
@@ -224,12 +224,12 @@
 					{:else}
 						<div
 							class="flex gap-3 {message.role === 'user'
-								? 'ml-auto max-w-[80%]'
-								: ''} rounded-xl bg-card p-4 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)]"
+								? 'ml-auto w-[85%] md:w-[80%]'
+								: 'w-[85%] md:w-[80%]'} rounded-xl bg-card p-4 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)]"
 						>
 							<div class="flex-1">
 								{#if message.role === 'assistant'}
-									<div class="mb-1 text-sm font-medium text-primary">Goon</div>
+									<div class="mb-1 text-sm font-medium text-primary">Yappatron</div>
 								{/if}
 								<p class="whitespace-pre-line text-foreground">{message.content}</p>
 
@@ -306,7 +306,7 @@
 				{#if messages.length === 0}
 					<div class="flex h-[calc(100vh-12rem)] items-center justify-center">
 						<div class="text-center text-muted-foreground">
-							<h3 class="text-lg font-semibold">Welcome to Vyntr Goon</h3>
+							<h3 class="text-lg font-semibold">Welcome to Vyntr Yappatron</h3>
 							<p class="text-sm">Start a conversation by typing a message below.</p>
 						</div>
 					</div>
@@ -318,7 +318,7 @@
 	</main>
 
 	<div class="pointer-events-none absolute bottom-0 left-0 right-0 mb-4">
-		<div class="mx-auto max-w-3xl">
+		<div class="mx-auto max-w-3xl px-4">
 			<form class="pointer-events-auto relative flex" onsubmit={handleSubmit}>
 				<div
 					class="flex w-full items-end overflow-hidden rounded-[1.5rem] border bg-card shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md transition-colors focus-within:border-primary/80 hover:bg-card-hover"

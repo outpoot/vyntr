@@ -9,7 +9,7 @@
 	import Wand from './icon/Wand.svelte';
 	import SignIn from './icon/SignIn.svelte';
 	import Settings from './icon/Settings.svelte';
-	import { Sun, Moon } from 'lucide-svelte';
+	import { Sun, Moon, Menu } from 'lucide-svelte';
 	import Key from './icon/Key.svelte';
 
 	import { activeSidebarItem } from '$lib/stores/sidebar';
@@ -23,6 +23,8 @@
 	import { Label } from '../ui/label';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
+	import { Button } from '../ui/button';
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 
 	let navItems = $derived([
 		{ id: 'home', label: 'Home', icon: Home, href: '/home' },
@@ -84,124 +86,136 @@
 	function toggleTheme() {
 		setMode($mode === 'dark' ? 'light' : 'dark');
 	}
+	const isMobile = new IsMobile().current;
 </script>
 
-<Sidebar.Root collapsible="icon">
-	<Sidebar.Header class="ml-3 mt-4 flex flex-row items-center p-2">
-		<Label class="montserrat-black text-2xl font-bold">Vyntr</Label>
-		{#if $USER_DATA?.isAdmin}
-			<span class="flex items-center justify-center text-[0.5rem] md:text-xs">|</span>
-			<span class="text-[0.5rem] md:text-xs">Admin</span>
-		{/if}
-	</Sidebar.Header>
+<Sidebar.Provider>
+	<Sidebar.Root collapsible="offcanvas">
+		<Sidebar.Header class="ml-3 mt-4 flex flex-row items-center p-2">
+			<Label class="montserrat-black text-2xl font-bold">Vyntr</Label>
+			{#if $USER_DATA?.isAdmin}
+				<span class="flex items-center justify-center text-[0.5rem] md:text-xs">|</span>
+				<span class="text-[0.5rem] md:text-xs">Admin</span>
+			{/if}
+		</Sidebar.Header>
 
-	<Sidebar.Content>
-		<Sidebar.Group>
-			<Sidebar.GroupContent>
-				<Sidebar.Menu>
-					{#each navItems as item}
-						{@const isActive = $activeSidebarItem === item.id}
-						<Sidebar.MenuItem>
-							<div class:active={isActive}>
-								<Sidebar.MenuButton
-									class="menu-button flex h-12 items-center justify-start px-3 text-lg group-data-[collapsible=icon]:!p-0"
-									onclick={() => handleClick(item)}
-								>
-									{#if item.icon}
-										<div class="relative h-6 w-6" data-item={item.id}>
-											{#if isActive}
-												<div
-													class="absolute inset-0 flex items-center justify-center"
-													in:scale={{ duration: 150 }}
-												>
-													<item.icon size={24} class="icon" filled={true} />
-												</div>
-											{:else}
-												<div class="absolute inset-0 flex items-center justify-center">
-													<item.icon size={24} class="icon" filled={false} />
-												</div>
-											{/if}
-										</div>
-									{/if}
-									<span class="label font-medium" class:font-bold={isActive}>
-										{item.label}
-									</span>
-								</Sidebar.MenuButton>
-							</div>
-						</Sidebar.MenuItem>
-					{/each}
-					<Popover>
-						<PopoverTrigger>
+		<Sidebar.Content>
+			<Sidebar.Group>
+				<Sidebar.GroupContent>
+					<Sidebar.Menu>
+						{#each navItems as item}
+							{@const isActive = $activeSidebarItem === item.id}
 							<Sidebar.MenuItem>
-								<div>
+								<div class:active={isActive}>
 									<Sidebar.MenuButton
 										class="menu-button flex h-12 items-center justify-start px-3 text-lg group-data-[collapsible=icon]:!p-0"
+										onclick={() => handleClick(item)}
 									>
-										<div class="relative h-6 w-6">
-											<div class="absolute inset-0 flex items-center justify-center">
-												<More size={24} class="icon" filled={false} />
+										{#if item.icon}
+											<div class="relative h-6 w-6" data-item={item.id}>
+												{#if isActive}
+													<div
+														class="absolute inset-0 flex items-center justify-center"
+														in:scale={{ duration: 150 }}
+													>
+														<item.icon size={24} class="icon" filled={true} />
+													</div>
+												{:else}
+													<div class="absolute inset-0 flex items-center justify-center">
+														<item.icon size={24} class="icon" filled={false} />
+													</div>
+												{/if}
 											</div>
-										</div>
-										<span class="label font-medium">More</span>
+										{/if}
+										<span class="label font-medium" class:font-bold={isActive}>
+											{item.label}
+										</span>
 									</Sidebar.MenuButton>
 								</div>
 							</Sidebar.MenuItem>
-						</PopoverTrigger>
-						<PopoverContent class="w-64 rounded-xl p-2" side="right">
-							<p class="px-3 py-1.5">
-								<span class="text-sm font-medium">Logged in as "{$USER_DATA?.name}"</span>
-								<span class="text-sm text-muted-foreground">{$USER_DATA?.email}</span>
-							</p>
-							<div class="flex flex-col">
-								<button
-									class="flex w-full items-center gap-2 rounded-md p-3 text-sm font-medium transition-colors hover:bg-sidebar-accent"
-									onclick={toggleTheme}
-								>
-									{#if $mode === 'dark'}
-										<div class="flex items-center gap-2" in:scale|local={{ duration: 150 }}>
-											<Sun class="h-4 w-4" />
-											<span class="label font-medium">Light mode</span>
-										</div>
-									{:else}
-										<div class="flex items-center gap-2" in:scale|local={{ duration: 150 }}>
-											<Moon class="h-4 w-4" />
-											<span class="label font-medium">Dark mode</span>
-										</div>
-									{/if}
-								</button>
-								<button
-									onclick={() => goto('/domains/list')}
-									class="flex w-full items-center gap-2 rounded-md p-3 text-sm font-medium transition-colors hover:bg-sidebar-accent"
-								>
-									<Dns class="h-4 w-4" />
-									<span class="label font-medium">My Domains</span>
-								</button>
-
-								<button
-									onclick={() => goto('/settings')}
-									class="flex w-full items-center gap-2 rounded-md p-3 text-sm font-medium transition-colors hover:bg-sidebar-accent"
-								>
-									<Settings class="h-4 w-4" />
-									<span class="label font-medium">Settings</span>
-								</button>
-
-								{#if $USER_DATA?.isAdmin}
+						{/each}
+						<Popover>
+							<PopoverTrigger>
+								<Sidebar.MenuItem>
+									<div>
+										<Sidebar.MenuButton
+											class="menu-button flex h-12 items-center justify-start px-3 text-lg group-data-[collapsible=icon]:!p-0"
+										>
+											<div class="relative h-6 w-6">
+												<div class="absolute inset-0 flex items-center justify-center">
+													<More size={24} class="icon" filled={false} />
+												</div>
+											</div>
+											<span class="label font-medium">More</span>
+										</Sidebar.MenuButton>
+									</div>
+								</Sidebar.MenuItem>
+							</PopoverTrigger>
+							<PopoverContent class="w-64 rounded-xl p-2" side={!isMobile ? 'right' : 'bottom'}>
+								<p class="px-3 py-1.5">
+									<span class="text-sm font-medium">Logged in as "{$USER_DATA?.name}"</span>
+									<span class="text-sm text-muted-foreground">{$USER_DATA?.email}</span>
+								</p>
+								<div class="flex flex-col">
 									<button
-										onclick={() => goto('/admin/domains')}
+										class="flex w-full items-center gap-2 rounded-md p-3 text-sm font-medium transition-colors hover:bg-sidebar-accent"
+										onclick={toggleTheme}
+									>
+										{#if $mode === 'dark'}
+											<div class="flex items-center gap-2" in:scale|local={{ duration: 150 }}>
+												<Sun class="h-4 w-4" />
+												<span class="label font-medium">Light mode</span>
+											</div>
+										{:else}
+											<div class="flex items-center gap-2" in:scale|local={{ duration: 150 }}>
+												<Moon class="h-4 w-4" />
+												<span class="label font-medium">Dark mode</span>
+											</div>
+										{/if}
+									</button>
+									<button
+										onclick={() => goto('/domains/list')}
 										class="flex w-full items-center gap-2 rounded-md p-3 text-sm font-medium transition-colors hover:bg-sidebar-accent"
 									>
 										<Dns class="h-4 w-4" />
-										<span class="label font-medium">Verification Center</span>
+										<span class="label font-medium">My Domains</span>
 									</button>
-								{/if}
-							</div>
-						</PopoverContent>
-					</Popover>
-				</Sidebar.Menu>
-			</Sidebar.GroupContent>
-		</Sidebar.Group>
-	</Sidebar.Content>
-</Sidebar.Root>
+
+									<button
+										onclick={() => goto('/settings')}
+										class="flex w-full items-center gap-2 rounded-md p-3 text-sm font-medium transition-colors hover:bg-sidebar-accent"
+									>
+										<Settings class="h-4 w-4" />
+										<span class="label font-medium">Settings</span>
+									</button>
+
+									{#if $USER_DATA?.isAdmin}
+										<button
+											onclick={() => goto('/admin/domains')}
+											class="flex w-full items-center gap-2 rounded-md p-3 text-sm font-medium transition-colors hover:bg-sidebar-accent"
+										>
+											<Dns class="h-4 w-4" />
+											<span class="label font-medium">Verification Center</span>
+										</button>
+									{/if}
+								</div>
+							</PopoverContent>
+						</Popover>
+					</Sidebar.Menu>
+				</Sidebar.GroupContent>
+			</Sidebar.Group>
+		</Sidebar.Content>
+	</Sidebar.Root>
+
+	<div class="fixed left-4 top-4 z-40 md:hidden">
+		<Sidebar.Trigger>
+			<Button>
+				<Menu class="h-6 w-6" />
+				<span class="sr-only">Toggle Sidebar</span>
+			</Button>
+		</Sidebar.Trigger>
+	</div>
+</Sidebar.Provider>
 
 <SignInConfirmDialog bind:open={showConfirm} onConfirm={handleSignIn} />
 

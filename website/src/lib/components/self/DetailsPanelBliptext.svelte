@@ -21,7 +21,7 @@
 
 {#if details}
 	<Card.Root
-		class="z-0 h-fit w-96 rounded-xl bg-card text-card-foreground shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md"
+		class="z-0 h-fit w-full lg:w-96 rounded-xl bg-card text-card-foreground shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md"
 	>
 		<Card.Header class="pb-3">
 			<Card.Title class="text-lg font-semibold leading-none tracking-tight">
@@ -38,7 +38,7 @@
 					onerror={() => (imageError = true)}
 				/>
 			{/if}
-
+c
 			<div
 				class="grid auto-rows-[minmax(0,auto)] grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3"
 			>

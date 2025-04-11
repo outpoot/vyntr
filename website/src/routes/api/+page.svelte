@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Card } from '$lib/components/ui/card';
-	import { Key, Trash2, Plus, History, CircleDollarSign, Coins, ArrowRight } from 'lucide-svelte';
+	import { Key, Trash2, Plus, History, Coins, ArrowRight } from 'lucide-svelte';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { toast } from 'svelte-sonner';
 	import Codeblock from '$lib/components/self/Codeblock.svelte';
@@ -14,7 +14,7 @@
 	let apiKey = $state(null);
 	let apiKeyId = $state<string | null>(data.apiKey?.id || null);
 	let justCreated = $state(false);
-	let credits = $state(data.apiKey?.remaining	|| 0);
+	let credits = $state(data.apiKey?.remaining || 0);
 
 	$effect(() => {
 		subscriptionStore.checkStatus();
@@ -54,36 +54,34 @@
 		}
 	}
 
-	async function deleteKey() {
-		if (!apiKeyId) return;
-
+	async function regenerateKey() {
 		loading = true;
 		try {
-			await fetch(`/api/keys/${apiKeyId}`, {
-				method: 'DELETE'
+			const response = await fetch(`/api/keys/${apiKeyId}/regenerate`, {
+				method: 'POST'
 			});
-			apiKey = null;
-			apiKeyId = null;
-
-			showDeleteConfirm = false;
-			toast.success('API key deleted');
+			if (!response.ok) throw new Error('Failed to regenerate key');
+			const { id, key, remaining } = await response.json();
+			apiKeyId = id;
+			apiKey = key;
+			credits = remaining;
+			justCreated = true;
+			toast.success('API key regenerated');
 		} catch (err) {
-			toast.error('Failed to delete API key');
+			toast.error('Failed to regenerate key');
 		} finally {
 			loading = false;
 		}
 	}
 </script>
 
-<div class="container mx-auto space-y-6 p-8">
-	<div class="flex items-center justify-between">
-		<div>
-			<h1 class="text-3xl font-bold">API</h1>
-			<p class="text-muted">Manage your API access and usage</p>
-		</div>
+<div class="container mx-auto space-y-6 p-4 md:p-8">
+	<div class="flex flex-col items-center justify-center">
+		<h1 class="text-3xl font-bold">API</h1>
+		<p class="text-muted">Manage your API access and usage</p>
 	</div>
 
-	<div class="grid gap-6 md:grid-cols-2">
+	<div class="grid gap-6 lg:grid-cols-2">
 		<Card class="p-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md">
 			<div class="flex flex-col gap-2">
 				<div class="flex items-center gap-2">
@@ -149,7 +147,7 @@
 					<LinkedChart
 						data={usageData}
 						barMinWidth={15}
-						width={600}
+						width={'100%' as any}
 						gap={4}
 						height={280}
 						fill="hsl(var(--primary))"
@@ -176,7 +174,7 @@
 		</Card>
 	</div>
 
-	<Card class="p-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md">
+	<Card class="overflow-hidden p-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md">
 		<div class="flex items-start justify-between">
 			<div>
 				<h2 class="text-xl font-bold">API Key</h2>
@@ -184,13 +182,9 @@
 			</div>
 			{#if apiKeyId}
 				<div class="flex gap-2">
-					<Button
-						variant="destructive"
-						onclick={() => (showDeleteConfirm = true)}
-						disabled={loading}
-					>
-						<Trash2 class="h-4 w-4" />
-						Delete
+					<Button variant="outline" onclick={regenerateKey} disabled={loading}>
+						<Key class="h-4 w-4" />
+						Regenerate
 					</Button>
 				</div>
 			{/if}
@@ -198,7 +192,9 @@
 
 		{#if apiKey && justCreated}
 			<div class="mt-4 flex max-w-[800px] flex-col gap-2">
-				<Codeblock text={apiKey} />
+				<div class="overflow-x-auto">
+					<Codeblock text={apiKey} />
+				</div>
 				<Status
 					type="warning"
 					message="This is the only time your full API key will be shown. If you lose it, you'll need to create a new one."
@@ -210,7 +206,7 @@
 				<Codeblock text={`${data.apiKey.prefix}${'x'.repeat(64)}`} displayOnly={true} />
 				<p class="mt-2 text-xs text-muted">
 					For security reasons, the full API key is only shown once upon creation. If you've lost
-					your key, you'll need to delete this one and create a new one.
+					your key, you'll need to regenerate it.
 				</p>
 			</div>
 		{:else}
@@ -223,22 +219,26 @@
 		{/if}
 	</Card>
 
-	<Card class="p-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md">
+	<Card class="overflow-hidden p-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md">
 		<h2 class="text-xl font-bold">Documentation</h2>
 		<div class="mt-4 space-y-6">
 			<div class="flex flex-col gap-2">
 				<h3 class="font-medium">Endpoint</h3>
 				<p class="text-sm text-muted">Make GET requests to:</p>
-				<Codeblock text="https://vyntr.com/api/search?q=your query" displayOnly={true} />
+				<div class="overflow-x-auto">
+					<Codeblock text="https://vyntr.com/api/search?q=your query" displayOnly={true} />
+				</div>
 			</div>
 
 			<div class="flex flex-col gap-2">
 				<h3 class="font-medium">Authentication</h3>
 				<p class="text-sm text-muted">Include your API key in the Authorization header:</p>
-				<Codeblock
-					text={`curl -X GET "https://vyntr.com/api/search?q=hello" -H "Authorization: Bearer ${data.apiKey?.prefix ?? 'vyntr_'}your_api_key"`.trim()}
-					displayOnly={true}
-				/>
+				<div class="overflow-x-auto">
+					<Codeblock
+						text={`curl -X GET "https://vyntr.com/api/search?q=hello" -H "Authorization: Bearer ${data.apiKey?.prefix ?? 'vyntr_'}your_api_key"`.trim()}
+						displayOnly={true}
+					/>
+				</div>
 			</div>
 
 			<div class="flex flex-col gap-2">
@@ -279,18 +279,3 @@
 		</div>
 	</Card>
 </div>
-
-<Dialog.Root bind:open={showDeleteConfirm}>
-	<Dialog.Content>
-		<Dialog.Header>
-			<Dialog.Title>Delete API Key</Dialog.Title>
-			<Dialog.Description>
-				Are you sure you want to delete your API key? This action cannot be undone.
-			</Dialog.Description>
-		</Dialog.Header>
-		<Dialog.Footer>
-			<Button variant="ghost" onclick={() => (showDeleteConfirm = false)}>Cancel</Button>
-			<Button variant="destructive" onclick={deleteKey}>Delete</Button>
-		</Dialog.Footer>
-	</Dialog.Content>
-</Dialog.Root>

@@ -39,11 +39,9 @@ export const POST: RequestHandler = async (event) => {
         body: {
             name: "API Key",
             rateLimitEnabled: true,
-            rateLimitTimeWindow: 1000 * 60 * 60 * 24, // 1 day
-            rateLimitMax: 1000,
-            remaining: 1000, // Initial credit balance
-            refillAmount: 1000,
-            refillInterval: 1000 * 60 * 60 * 24, // Refill daily
+            rateLimitTimeWindow: 1000,
+            rateLimitMax: 10,
+            remaining: 1000,
             permissions: {
                 api: ['read']
             },

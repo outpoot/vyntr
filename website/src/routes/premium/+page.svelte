@@ -5,7 +5,7 @@
 	import { subscriptionStore } from '$lib/stores/subscription';
 
 	const benefits = [
-		'100 messages per day with Goon AI',
+		'100 messages per day with Yappatron AI',
 		'Priority response time',
 		'Higher website submission limits',
 		'Priority website verification',
@@ -74,7 +74,7 @@
 				<ul class="mt-8 space-y-4">
 					<li class="flex items-center gap-2">
 						<MessageSquare class="h-5 w-5 text-muted-foreground" />
-						<span>5 messages per day with Goon AI</span>
+						<span>5 messages per day with Yappatron AI</span>
 					</li>
 					<li class="flex items-center gap-2">
 						<Zap class="h-5 w-5 text-muted-foreground" />

@@ -24,8 +24,10 @@
 </script>
 
 <div class="container mx-auto space-y-6 p-6">
-	<div class="flex items-center justify-between">
-		<h1 class="text-2xl font-bold">Connected Domains</h1>
+	<div
+		class="mb-8 flex flex-col items-center justify-center gap-2 sm:flex-row sm:items-center sm:justify-between"
+	>
+		<h1 class="text-2xl font-bold">Your Domains</h1>
 		<Button onclick={() => goto('/domains/register')} variant="default">
 			<Plus class="h-4 w-4" />
 			Register domain
@@ -57,44 +59,51 @@
 		</div>
 	{:else}
 		<div class="overflow-hidden rounded-lg border bg-card shadow">
-			<table class="min-w-full divide-y">
-				<thead class="bg-primary/10">
-					<tr>
-						<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Domain</th>
-						<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Status</th>
-						<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Added</th>
-						<th class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider"
-							>Actions</th
-						>
-					</tr>
-				</thead>
-				<tbody class="divide-y bg-card">
-					{#each data.domains as domain}
+			<div class="overflow-x-auto">
+				<table class="min-w-full divide-y">
+					<thead class="bg-primary/10">
 						<tr>
-							<td class="whitespace-nowrap px-6 py-4">
-								<div class="text-sm font-medium">{domain.domain}</div>
-							</td>
-							<td class="whitespace-nowrap px-6 py-4">
-								<span class={statusBadgeClass(domain.status)}>
-									{domain.status}
-								</span>
-							</td>
-							<td class="whitespace-nowrap px-6 py-4 text-sm">
-								{new Date(domain.createdAt).toLocaleDateString()}
-							</td>
-							<td class="whitespace-nowrap px-6 py-4 text-right text-sm">
-								<Button
-									variant="ghost"
-									size="sm"
-									onclick={() => goto(`/domains/manage/${domain.domain.replace('https://', '')}`)}
-								>
-									Manage
-								</Button>
-							</td>
+							<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
+								>Domain</th
+							>
+							<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
+								>Status</th
+							>
+							<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Added</th
+							>
+							<th class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider"
+								>Actions</th
+							>
 						</tr>
-					{/each}
-				</tbody>
-			</table>
+					</thead>
+					<tbody class="divide-y bg-card">
+						{#each data.domains as domain}
+							<tr>
+								<td class="whitespace-nowrap px-6 py-4">
+									<div class="text-sm font-medium">{domain.domain}</div>
+								</td>
+								<td class="whitespace-nowrap px-6 py-4">
+									<span class={statusBadgeClass(domain.status)}>
+										{domain.status}
+									</span>
+								</td>
+								<td class="whitespace-nowrap px-6 py-4 text-sm">
+									{new Date(domain.createdAt).toLocaleDateString()}
+								</td>
+								<td class="whitespace-nowrap px-6 py-4 text-right text-sm">
+									<Button
+										variant="ghost"
+										size="sm"
+										onclick={() => goto(`/domains/manage/${domain.domain.replace('https://', '')}`)}
+									>
+										Manage
+									</Button>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
 		</div>
 	{/if}
 </div>

@@ -9,18 +9,23 @@
 	function formatDate(dateStr: string | null) {
 		if (!dateStr) return '';
 		const date = new Date(dateStr);
-		return date.toLocaleDateString(undefined, { 
+		return date.toLocaleDateString(undefined, {
 			year: 'numeric',
 			month: 'long',
 			day: 'numeric'
 		});
 	}
+	function truncateString(str: string, maxLength = 100) {
+		return str.length > maxLength ? str.slice(0, maxLength) + '...' : str;
+	}
 </script>
 
-<div class="relative rounded-xl bg-card p-4 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md border">
-	<div class="flex items-start justify-between">
-		<a href={result.url} class="group inline-flex flex-col">
-			<div class="flex items-center gap-2">
+<div
+	class="relative overflow-hidden rounded-xl border bg-card p-4 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)] drop-shadow-md"
+>
+	<div class="flex items-start justify-between gap-2">
+		<a href={result.url} class="group inline-flex min-w-0 flex-col">
+			<div class="flex min-w-0 items-center gap-2">
 				<div class="relative flex h-full items-center">
 					<div
 						class="flex h-[26px] w-[26px] items-center justify-center rounded-full bg-white p-[1px]"
@@ -37,14 +42,14 @@
 						{/if}
 					</div>
 				</div>
-				<div class="flex flex-col py-0.5">
-					<span class="text-sm">{result.title}</span>
-					<span class="text-xs text-muted">{result.url}</span>
+				<div class="flex min-w-0 flex-col py-0.5">
+					<span class="truncate text-sm">{truncateString(result.title, 50)}</span>
+					<span class="truncate text-xs text-muted">{truncateString(result.url, 50)}</span>
 				</div>
 			</div>
 
 			<h3 class="mt-1 text-xl text-blue-600 group-hover:underline">
-				{result.pageTitle}
+				{truncateString(result.pageTitle, 50)}
 			</h3>
 		</a>
 
@@ -69,7 +74,7 @@
 					{formatDate(result.date)} ―
 				</span>
 			{/if}
-			{result.preview.length > 100 ? result.preview.slice(0, 100) + '...' : result.preview}
+			{truncateString(result.preview, 100)}
 		</span>
 	</div>
 </div>

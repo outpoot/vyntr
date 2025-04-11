@@ -10,6 +10,6 @@
 		Vyntr
 	</h1>
 
-	<SearchInput className="max-w-3xl" />
+	<SearchInput className="max-w-3xl px-4" />
 	<TrailingButtons />
 </div>
