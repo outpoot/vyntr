@@ -27,6 +27,7 @@
 	let isFocused = $state(false);
 	let searchValue = $state(value);
 	let selectedIndex = $state(-1);
+	let arrowKeysUsed = $state(false);
 	let inputRef: HTMLInputElement | null = $state(null);
 
 	let suggestions = $state<string[]>([]);
@@ -94,18 +95,22 @@
 		switch (e.key) {
 			case 'ArrowDown':
 				e.preventDefault();
+				arrowKeysUsed = true;
 				selectedIndex = (selectedIndex + 1) % filteredSuggestions.length;
 				break;
 			case 'ArrowUp':
 				e.preventDefault();
+				arrowKeysUsed = true;
 				selectedIndex = selectedIndex <= 0 ? filteredSuggestions.length - 1 : selectedIndex - 1;
 				break;
 			case 'Enter':
-				if (selectedIndex >= 0) selectSuggestion(filteredSuggestions[selectedIndex]);
+				if (selectedIndex >= 0 && arrowKeysUsed)
+					selectSuggestion(filteredSuggestions[selectedIndex]);
 				break;
 			case 'Escape':
 				isFocused = false;
 				selectedIndex = -1;
+				arrowKeysUsed = false;
 				break;
 		}
 	}
@@ -143,7 +148,7 @@
 						<button
 							class="flex w-full items-center gap-3 rounded-sm px-6 py-1 text-left text-base {i ===
 							selectedIndex
-								? 'bg-accent'
+								? 'bg-primary/20'
 								: ''} hover:bg-primary/20"
 							onmousedown={() => selectSuggestion(suggestion)}
 							onmouseover={() => (selectedIndex = i)}
