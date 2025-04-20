@@ -30,7 +30,7 @@ export const POST: RequestHandler = async (event) => {
             rateLimitEnabled: existingKey.rateLimitEnabled,
             rateLimitTimeWindow: existingKey.rateLimitTimeWindow ?? undefined,
             rateLimitMax: existingKey.rateLimitMax ?? undefined,
-            permissions: existingKey.permissions ? JSON.parse(existingKey.permissions) : undefined,
+            permissions: typeof existingKey.permissions === 'string' ? JSON.parse(existingKey.permissions) : existingKey.permissions,
             metadata: existingKey.metadata
         },
         headers: event.request.headers

@@ -1,9 +1,8 @@
 <script lang="ts">
 	import AlertCircle from 'lucide-svelte/icons/alert-circle';
-	import CheckCircle2 from 'lucide-svelte/icons/check-circle2';
+	import Check from 'lucide-svelte/icons/check';
 	import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
 	import Info from 'lucide-svelte/icons/info';
-
 
 	interface Props {
 		type?: 'error' | 'success' | 'warning' | 'info';
@@ -31,7 +30,7 @@
 	{:else if type === 'info'}
 		<Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600" />
 	{:else}
-		<CheckCircle2 class="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
+		<Check class="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
 	{/if}
 	<span
 		class:text-destructive={type === 'error'}
