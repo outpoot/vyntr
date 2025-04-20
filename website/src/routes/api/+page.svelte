@@ -100,9 +100,13 @@
 							<Button
 								variant="outline"
 								class="relative flex h-auto w-full flex-col gap-1 p-4 hover:border-primary hover:no-underline"
-								href={`/api/auth/checkout/${pkg.credits}`}
-								data-polar-checkout
-								data-polar-checkout-theme="light"
+								href={apiKeyId ? `/api/auth/checkout/${pkg.credits}` : undefined}
+								{...(!apiKeyId ? {} : {
+									'data-polar-checkout': '',
+									'data-polar-checkout-theme': 'light'
+								})}
+								disabled={!apiKeyId}
+								title={!apiKeyId ? 'Create an API key first to purchase credits' : ''}
 							>
 								<div class="flex w-full items-center justify-between">
 									<span class="text-lg font-bold text-foreground">

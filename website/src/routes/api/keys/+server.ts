@@ -38,9 +38,6 @@ export const POST: RequestHandler = async (event) => {
     const apiKey = await auth.api.createApiKey({
         body: {
             name: "API Key",
-            rateLimitEnabled: true,
-            rateLimitTimeWindow: 1000,
-            rateLimitMax: 10,
             remaining: 1000,
             permissions: {
                 api: ['read']

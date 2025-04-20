@@ -86,6 +86,10 @@ export const auth = betterAuth({
                         .from(apikey)
                         .where(eq(apikey.userId, userId));
 
+                    if (userApiKeys.length === 0) {
+                        console.error(`No API key found for user ${userId} during order creation.`);
+                        return;
+                    }
                     const keyToUpdate = userApiKeys[0];
 
                     const credits = {
@@ -98,15 +102,20 @@ export const auth = betterAuth({
                         const currentRemaining = keyToUpdate.remaining ?? 0;
                         const newRemaining = currentRemaining + credits;
 
+                        const newRateLimitMax = credits;
+
                         await auth.api.updateApiKey({
                             body: {
                                 keyId: keyToUpdate.id,
                                 userId: userId,
-                                remaining: newRemaining
+                                remaining: newRemaining,
+                                rateLimitMax: newRateLimitMax
                             }
                         });
-                    } else {
-                        console.log(`Product ${productId} does not correspond to credit purchase.`);
+                        console.log(`Updated key ${keyToUpdate.id} for user ${userId}: remaining=${newRemaining}, rateLimitMax=${newRateLimitMax}`);
+                    }
+                    else {
+                        console.log(`Product ${productId} does not correspond to a known credit purchase or premium subscription.`);
                     }
                 },
             }
