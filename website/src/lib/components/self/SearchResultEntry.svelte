@@ -56,7 +56,7 @@
 		<DropdownMenu.Root>
 			<DropdownMenu.Trigger>
 				<button type="button" class="mt-1" onclick={(e) => e.preventDefault()}>
-					<MoreVertical class="h-5 w-5 text-primary-foreground" />
+					<MoreVertical class="h-5 w-5 text-primary" />
 				</button>
 			</DropdownMenu.Trigger>
 			<DropdownMenu.Content>

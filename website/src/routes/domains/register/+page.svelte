@@ -57,22 +57,24 @@ import DomainVerifyModal from '$lib/components/self/DomainVerifyModal.svelte';
 	<Label class="text-xl font-bold">Register Your Domain</Label>
 	<p class="text-sm text-muted">Add your domain to our registry</p>
 
+	<div class="w-full max-w-xl">
+		{#if !canSubmitMore}
+			<Status
+				type="error"
+				message={data.isPremium
+					? "You've reached the maximum limit of 50 domains."
+					: "You've reached the free limit of 20 domains. Upgrade to Premium to register up to 50 domains."}
+			/>
+		{:else}
+			<Status
+				type="info"
+				message={`You can register ${remainingDomains} more domain${remainingDomains === 1 ? '' : 's'}`}
+			/>
+		{/if}
+	</div>
+
 	<div class="flex items-end gap-2">
 		<div class="w-full max-w-xl space-y-1">
-			{#if !canSubmitMore}
-				<Status
-					type="error"
-					message={data.isPremium
-						? "You've reached the maximum limit of 50 domains."
-						: "You've reached the free limit of 20 domains. Upgrade to Premium to register up to 50 domains."}
-				/>
-			{:else}
-				<Status
-					type="info"
-					message={`You can register ${remainingDomains} more domain${remainingDomains === 1 ? '' : 's'}`}
-				/>
-			{/if}
-
 			<Label>Domain to register</Label>
 			<div class="flex items-center rounded-md border shadow-sm">
 				<span
@@ -93,13 +95,18 @@ import DomainVerifyModal from '$lib/components/self/DomainVerifyModal.svelte';
 		</Button>
 	</div>
 
-	{#if error}
-		<Status type="error" message={error} />
-	{:else if domain && isValidDomain}
-		<Status
-			type="success"
-			message="Valid domain format (will be registered as: https://{domain})"
-		/>
+	{#if error || (domain && isValidDomain)}
+		<div class="w-full max-w-xl">
+			{#if error}
+				<Status type="error" message={error} />
+			{:else}
+				<Status
+					type="success"
+					maxWidth={true}
+					message="Valid domain format (will be registered as: https://{domain})"
+				/>
+			{/if}
+		</div>
 	{/if}
 </div>
 

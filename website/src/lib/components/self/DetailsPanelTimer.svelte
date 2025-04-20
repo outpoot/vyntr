@@ -158,13 +158,13 @@
 	</div>
 
 	<div
-		class="absolute inset-0 bottom-0 left-0 right-0 bg-sidebar"
+		class="absolute inset-0 bottom-0 left-0 right-0 bg-primary/20"
 		style="height: {(1 - progress) * 100}%; transition: height 0.066s linear;"
 	></div>
 
 	<div class="relative flex h-full flex-col justify-between p-4">
 		<div class="flex items-center justify-center">
-			<span class="font-mono text-3xl font-bold text-primary-foreground"
+			<span class="font-mono text-3xl font-bold text-primary"
 				>{formatTime(timeLeft)}</span
 			>
 		</div>

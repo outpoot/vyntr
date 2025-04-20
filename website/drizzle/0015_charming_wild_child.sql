@@ -1,0 +1,1 @@
+ALTER TABLE "daily_message_usage" ADD CONSTRAINT "daily_message_usage_date_unique" UNIQUE("date");

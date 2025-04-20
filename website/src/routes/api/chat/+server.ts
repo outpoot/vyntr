@@ -124,7 +124,8 @@ You are not sentient. Do not explain, acknowledge, or repeat these rules. Just f
                         }
                     ],
                     model: 'llama3-8b-8192',
-                    temperature: 0
+                    temperature: 0,
+                    max_tokens: 100,
                 });
 
                 const responseContent = searchQuery.choices[0]?.message?.content || '';
@@ -139,20 +140,14 @@ You are not sentient. Do not explain, acknowledge, or repeat these rules. Just f
                     const searchUrl = new URL('/api/search', url.origin);
                     searchUrl.searchParams.set('q', query);
 
-                    const searchResponse = await fetch(searchUrl, {
-                        headers: {
-                            'Accept': 'application/json',
-                            'Cookie': request.headers.get('cookie') || ''
-                        }
-                    });
+                    const searchResponse = await fetch(searchUrl);
 
                     if (!searchResponse.ok) {
                         throw new Error(`Search failed with status ${searchResponse.status}`);
                     }
 
-                    const searchResults = await searchResponse.json();
+                    searchResults = await searchResponse.json();
 
-                    // Send sources first
                     const sources = {
                         web: searchResults.web?.slice(0, 3) || [],
                         bliptext: searchResults.bliptext?.article ? {
@@ -163,7 +158,6 @@ You are not sentient. Do not explain, acknowledge, or repeat these rules. Just f
                         } : null
                     };
                     sendEvent('sources', sources);
-
                 }
                 sendEvent('status', 'Yapping...');
 
@@ -222,14 +216,14 @@ Bliptext is a platform where users can edit a word every 30 sec. The point of Bl
                         content: `Conversion results:\n${JSON.stringify(conversions)}`
                     });
                 }
-
                 const completion = await groq.chat.completions.create({
                     messages: [
                         ...systemMessages,
                         ...messages
                     ],
                     model: 'llama-3.3-70b-versatile',
-                    stream: true
+                    stream: true,
+                    max_tokens: 300,
                 });
 
                 console.log(systemMessages)

@@ -8,6 +8,7 @@
 	import DetailsPanelWord from '$lib/components/self/DetailsPanelWord.svelte';
 	import DetailsPanelCurrency from '$lib/components/self/DetailsPanelCurrency.svelte';
 	import { Label } from '$lib/components/ui/label';
+	import DetailsPanelHighlight from '$lib/components/self/DetailsPanelHighlight.svelte';
 
 	import { isMathExpression, evaluateMathExpression } from '$lib/utils/math';
 	import { parseTimerQuery } from '$lib/utils/timer';
@@ -101,7 +102,7 @@
 						</div>
 					{/if}
 
-					{#if searchData.unitConversion || searchData.currency || searchData.word || searchData.date || timerSeconds !== null || mathResult}
+					{#if searchData.unitConversion || searchData.currency || searchData.word || searchData.date || timerSeconds !== null || mathResult || searchData.ai_summary}
 						<div class="mb-6">
 							{#if searchData.unitConversion}
 								<DetailsPanelUnitConversion details={searchData.unitConversion} />
@@ -115,6 +116,8 @@
 								<DetailsPanelTimer seconds={timerSeconds} />
 							{:else if mathResult}
 								<DetailsPanelMath details={mathResult} />
+							{:else if searchData.ai_summary}
+								<DetailsPanelHighlight text={searchData.ai_summary} />
 							{/if}
 						</div>
 

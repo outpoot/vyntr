@@ -1,8 +1,8 @@
 import { error, json } from '@sveltejs/kit';
 import { searchWordnet } from '$lib/server/wordnet';
 
-export async function GET({ params }: { params: { term: string } }) {
-    const searchTerm = params.term;
+export async function GET({ url }: { url: URL }) {
+    const searchTerm = url.searchParams.get('term');
     if (!searchTerm) {
         throw error(400, 'Search term is required');
     }

@@ -138,7 +138,7 @@
 						<div class="flex flex-wrap gap-2 text-xs">
 							{#each registrarExamples as registrar}
 								<span
-									class="inline-flex select-none items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium"
+									class="inline-flex select-none items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium"
 								>
 									{registrar}
 								</span>

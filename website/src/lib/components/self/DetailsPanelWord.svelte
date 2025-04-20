@@ -27,9 +27,9 @@
 			{#if details.definitions?.length}
 				<div class="space-y-2">
 					{#each details.definitions as def, i}
-						<div class="inline-flex items-start justify-center gap-3">
+						<div class="flex items-start gap-3">
 							<div
-								class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 p-2 transition-transform hover:scale-110 select-none"
+								class="flex h-8 w-8 flex-shrink-0 select-none items-center justify-center rounded-full bg-primary/20 p-2 transition-transform hover:scale-110"
 							>
 								{i + 1}
 							</div>
@@ -40,9 +40,7 @@
 						</div>
 					{/each}
 				</div>
-			{/if}
-
-			{#if details.examples?.length}
+			{/if}			{#if details.examples?.length}
 				<div>
 					<h4 class="mb-1 font-semibold">Examples:</h4>
 					<ul class="list-inside list-disc space-y-1">
@@ -56,7 +54,7 @@
 			{#if details.synonyms?.length}
 				<div class="flex gap-4">
 					<div class="inline-flex items-center gap-2">
-						<h4 class="text-success my-auto text-sm">Similar:</h4>
+						<h4 class="my-auto text-sm text-success">Similar:</h4>
 						<div class="flex flex-wrap gap-1">
 							{#each details.synonyms as synonym}
 								<Badge variant="outline" class="transition-colors hover:bg-primary/20">

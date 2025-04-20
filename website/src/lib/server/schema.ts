@@ -162,6 +162,16 @@ export const dailyMessageUsage = pgTable('daily_message_usage', {
 	count: integer('count').notNull().default(0),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at').defaultNow().notNull(),
-}, (table) => ({
-	userDateUnique: unique().on(table.userId, table.date)
-}));
+}, (table) => [
+	unique("userDateUnique").on(table.userId, table.date)
+]);
+
+export const aiSummaries = pgTable('ai_summaries', {
+	id: uuid('id').defaultRandom().primaryKey(),
+	query: text('query').notNull().unique(),
+	summary: text('summary').notNull(),
+	isNull: boolean('is_null').notNull().default(false),
+	model: text('model').notNull(),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});

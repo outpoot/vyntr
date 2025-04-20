@@ -38,7 +38,7 @@
 					onerror={() => (imageError = true)}
 				/>
 			{/if}
-c
+
 			<div
 				class="grid auto-rows-[minmax(0,auto)] grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3"
 			>

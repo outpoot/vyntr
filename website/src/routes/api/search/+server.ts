@@ -8,7 +8,7 @@ import { parseUnitQuery } from '$lib/utils/unitParser';
 import { convertUnit, UNITS } from '$lib/utils/units';
 import { auth } from '$lib/auth';
 import { db } from '$lib/server/db';
-import { apiusage, apikey, searchQueries, userPreferences } from '$lib/server/schema';
+import { apiusage, apikey, searchQueries, userPreferences, aiSummaries } from '$lib/server/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { SEARCH_ENDPOINT } from '$env/static/private';
 import { getFavicon } from '$lib/utils';
@@ -161,6 +161,20 @@ export async function GET({ url, request }) {
         }
     }
 
+    // ==================== AI SUMMARY ====================
+    let aiSummary = null;
+    if (!userPrefs || userPrefs.aiSummarise) {
+        const summary = await db.query.aiSummaries.findFirst({
+            where: and(
+                eq(aiSummaries.query, query.toLowerCase().trim()),
+                eq(aiSummaries.isNull, false)
+            )
+        });
+        if (summary) {
+            aiSummary = summary.summary;
+        }
+    }
+
     // ==================== WEB SEARCH ====================
     const webResults = await fetchSearchResults(query, language);
 
@@ -185,11 +199,6 @@ export async function GET({ url, request }) {
     const currencyMatch = await parseCurrencyQuery(query);
     if (currencyMatch) {
         currencyDetail = await performConversion(currencyMatch);
-    }
-
-    let aiSummary = null;
-    if (!userPrefs || userPrefs.aiSummarise) {
-        // TODO: Implement AI summary generation
     }
 
     return json({
