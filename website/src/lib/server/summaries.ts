@@ -1,15 +1,16 @@
 import { db } from './db';
 import { searchQueries, aiSummaries } from './schema';
 import { eq, gt } from 'drizzle-orm';
-import Groq from 'groq-sdk';
-import { GROQ_API_KEY, SEARCH_ENDPOINT } from '$env/static/private';
+import OpenAI from 'openai';
+import { OPENROUTER_API_KEY, SEARCH_ENDPOINT } from '$env/static/private';
 import { parseDateQuery } from '$lib/utils/date';
 import { parseCurrencyQuery } from '$lib/utils/currency';
 import { parseUnitQuery } from '$lib/utils/unitParser';
 import { searchWordnet } from './wordnet';
 
-const groq = new Groq({
-    apiKey: GROQ_API_KEY
+const openai = new OpenAI({
+    baseURL: 'https://openrouter.ai/api/v1',
+    apiKey: OPENROUTER_API_KEY
 });
 
 async function fetchSearchResults(query: string) {
@@ -64,7 +65,8 @@ export async function generateSummaries() {
                     preview: result.preview,
                 })) : [];
 
-                const completion = await groq.chat.completions.create({
+                const completion = await openai.chat.completions.create({
+                    model: "google/gemini-2.0-flash-lite-001",
                     messages: [
                         {
                             role: 'system',
@@ -115,7 +117,6 @@ export async function generateSummaries() {
                             content: query.query
                         }
                     ],
-                    model: 'llama-3.3-70b-versatile',
                     temperature: 0.3,
                     max_tokens: 300,
                 });
@@ -127,7 +128,7 @@ export async function generateSummaries() {
                         query: query.query,
                         summary: hasNewlines ? '' : (summary === 'null' ? '' : summary),
                         isNull: hasNewlines || summary === 'null',
-                        model: 'llama-3.3-70b-versatile'
+                        model: 'google/gemini-2.0-flash-lite-001'
                     });
                 }
             } catch (err) {
