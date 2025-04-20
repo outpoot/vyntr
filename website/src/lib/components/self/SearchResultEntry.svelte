@@ -1,7 +1,8 @@
 <script lang="ts">
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import { Globe, MoreVertical } from 'lucide-svelte';
+	import { Globe, Link, MoreVertical } from 'lucide-svelte';
 	import type { SearchResult } from '$lib/types/search';
+	import { toast } from 'svelte-sonner';
 
 	let { result } = $props<{ result: SearchResult }>();
 	let imageError = $state(false);
@@ -43,7 +44,7 @@
 					</div>
 				</div>
 				<div class="flex min-w-0 flex-col py-0.5">
-					<span class="truncate text-sm">{truncateString(result.title, 50)}</span>
+					<span class="truncate text-sm text-foreground">{truncateString(result.title, 50)}</span>
 					<span class="truncate text-xs text-muted">{truncateString(result.url, 50)}</span>
 				</div>
 			</div>
@@ -59,10 +60,17 @@
 					<MoreVertical class="h-5 w-5 text-primary" />
 				</button>
 			</DropdownMenu.Trigger>
-			<DropdownMenu.Content>
-				<DropdownMenu.Item>Copy link</DropdownMenu.Item>
-				<DropdownMenu.Item>Share</DropdownMenu.Item>
-				<DropdownMenu.Item>Similar results</DropdownMenu.Item>
+			<DropdownMenu.Content class="w-32 rounded-xl p-2">
+				<DropdownMenu.Item
+					class="flex w-full items-center gap-2 rounded-md p-3 text-sm font-medium transition-colors hover:bg-sidebar-accent"
+					onclick={() => {
+						navigator.clipboard.writeText(result.url);
+						toast('The link has been copied to your clipboard.');
+					}}
+				>
+					<Link />
+					Copy link
+				</DropdownMenu.Item>
 			</DropdownMenu.Content>
 		</DropdownMenu.Root>
 	</div>
