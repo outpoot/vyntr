@@ -2,7 +2,8 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
-	import { ExternalLink, Check, X } from 'lucide-svelte';
+	import { ExternalLink, Check, X, Crown } from 'lucide-svelte';
+	import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select';
 
 	interface User {
 		id: string;
@@ -12,6 +13,7 @@
 		createdAt: Date;
 		updatedAt: Date;
 		isAdmin: boolean;
+		isPremium: boolean;
 	}
 
 	interface Domain {
@@ -28,6 +30,15 @@
 
 	let { data } = $props<{ domains: Domain[] }>();
 	let domains = $state(data.domains);
+	let filter = $state<'all' | 'premium' | 'free'>('all');
+
+	let filteredDomains = $derived(
+		domains.filter((domain: { user: { isPremium: any } }) => {
+			if (filter === 'all') return true;
+			if (filter === 'premium') return domain.user.isPremium;
+			return !domain.user.isPremium;
+		})
+	);
 
 	async function handleAction(domain: Domain, action: 'approve' | 'reject') {
 		try {
@@ -53,22 +64,41 @@
 		<p class="text-muted">Review and manage domain submissions</p>
 	</div>
 
+	<div class="my-4 flex justify-end">
+		<Select type="single" bind:value={filter}>
+			<SelectTrigger class="w-[180px]">Filter by plan</SelectTrigger>
+			<SelectContent>
+				<SelectItem value="all">All submissions</SelectItem>
+				<SelectItem value="premium">Premium users</SelectItem>
+				<SelectItem value="free">Free users</SelectItem>
+			</SelectContent>
+		</Select>
+	</div>
+
 	<div class="mt-4 grid gap-6">
-		{#if domains.length === 0}
+		{#if filteredDomains.length === 0}
 			<div class="rounded-lg border bg-card p-8 text-center">
 				<h3 class="text-lg font-semibold">No pending domains</h3>
 				<p class="text-sm text-muted">All clear! No domains waiting for review.</p>
 			</div>
 		{:else}
-			{#each domains as domain (domain.id)}
+			{#each filteredDomains as domain (domain.id)}
 				<Card.Root>
 					<Card.Header>
 						<div class="flex items-start justify-between">
 							<div>
-								<Card.Title>{domain.domain}</Card.Title>
-								<Card.Description class="text-muted"
-									>Submitted by {domain.user.email}</Card.Description
-								>
+								<div class="flex items-center gap-2">
+									<Card.Title>{domain.domain}</Card.Title>
+									{#if domain.user.isPremium}
+										<Crown class="h-4 w-4 text-primary" />
+									{/if}
+								</div>
+								<Card.Description class="text-muted">
+									Submitted by {domain.user.email}
+									{#if domain.user.isPremium}
+										<span class="ml-1 text-primary">(Premium)</span>
+									{/if}
+								</Card.Description>
 							</div>
 							<Button
 								variant="outline"
@@ -103,10 +133,7 @@
 						</div>
 					</Card.Content>
 					<Card.Footer class="flex justify-end gap-4">
-						<button
-							class="underline"
-							onclick={() => handleAction(domain, 'reject')}
-						>
+						<button class="underline" onclick={() => handleAction(domain, 'reject')}>
 							Reject
 						</button>
 						<Button variant="default" onclick={() => handleAction(domain, 'approve')}>

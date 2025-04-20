@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, integer, json, uuid, primaryKey, date, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, json, uuid, primaryKey, date, unique, index } from "drizzle-orm/pg-core";
 
 // ======= CONFIGURABLE =======
 export const user = pgTable("user", {
@@ -39,7 +39,11 @@ export const website = pgTable("website", {
 	// Timestamps
 	createdAt: timestamp("created_at").notNull(),
 	updatedAt: timestamp("updated_at").notNull(),
-});
+}, (table) => ({
+	statusIdx: index("idx_website_status").on(table.status),
+	userIdIdx: index("idx_website_user_id").on(table.userId),
+	domainStatusIdx: index("idx_website_domain_status").on(table.domain, table.status)
+}));
 
 export const websiteRelations = relations(website, ({ one }: { one: any }) => ({
 	user: one(user, {
@@ -59,7 +63,9 @@ export const websiteVote = pgTable('website_votes', {
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at'),
 }, (table) => ({
-	pk: primaryKey({ columns: [table.website, table.userId] })
+	pk: primaryKey({ columns: [table.website, table.userId] }),
+	websiteIdx: index("idx_website_votes_website").on(table.website),
+	userIdx: index("idx_website_votes_user").on(table.userId)
 }));
 
 export const userPreferences = pgTable('user_preferences', {
@@ -74,7 +80,9 @@ export const userPreferences = pgTable('user_preferences', {
 	aiPersonalization: boolean('ai_personalization').default(true).notNull(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at').defaultNow().notNull()
-});
+}, (table) => ({
+	userIdIdx: index("idx_user_preferences_user_id").on(table.userId)
+}));
 
 // ======= BETTERAUTH - DO NOT MODIFY =======
 export const session = pgTable("session", {
@@ -135,7 +143,9 @@ export const apikey = pgTable("apikey", {
 	updatedAt: timestamp('updated_at').notNull(),
 	permissions: text('permissions'),
 	metadata: text('metadata')
-});
+}, (table) => ({
+	userIdx: index("idx_apikey_user").on(table.userId)
+}));
 
 export const apiusage = pgTable('api_usage', {
 	id: uuid('id').defaultRandom().primaryKey(),
@@ -144,7 +154,9 @@ export const apiusage = pgTable('api_usage', {
 	count: integer('count').notNull().default(0),
 	createdAt: timestamp('created_at').notNull(),
 	updatedAt: timestamp('updated_at').notNull(),
-});
+}, (table) => ({
+	userDateIdx: index("idx_api_usage_user_date").on(table.userId, table.date)
+}));
 
 export const searchQueries = pgTable('search_queries', {
 	id: uuid('id').defaultRandom().primaryKey(),
@@ -153,7 +165,10 @@ export const searchQueries = pgTable('search_queries', {
 	source: text('source').notNull().default('vyntr'), // vyntr, google, amazon, etc
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (table) => ({
+	queryCountIdx: index("idx_search_queries_query").on(table.query, table.count.desc()),
+	countIdx: index("idx_search_queries_count").on(table.count.desc())
+}));
 
 export const dailyMessageUsage = pgTable('daily_message_usage', {
 	id: uuid('id').defaultRandom().primaryKey(),
@@ -162,9 +177,10 @@ export const dailyMessageUsage = pgTable('daily_message_usage', {
 	count: integer('count').notNull().default(0),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at').defaultNow().notNull(),
-}, (table) => [
-	unique("userDateUnique").on(table.userId, table.date)
-]);
+}, (table) => ({
+	userDateIdx: index("idx_daily_message_usage_user_date").on(table.userId, table.date),
+	userDateUnique: unique("userDateUnique").on(table.userId, table.date)
+}));
 
 export const aiSummaries = pgTable('ai_summaries', {
 	id: uuid('id').defaultRandom().primaryKey(),
@@ -174,4 +190,6 @@ export const aiSummaries = pgTable('ai_summaries', {
 	model: text('model').notNull(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (table) => ({
+	queryIdx: index("idx_ai_summaries_query").on(table.query)
+}));

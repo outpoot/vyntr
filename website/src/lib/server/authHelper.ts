@@ -22,7 +22,8 @@ export async function requireAdmin(event: RequestEvent) {
 async function getCustomerIdbyEmail(email: string): Promise<string | null> {
   try {
     const customers = await polarClient.customers.list({ email });
-    return customers.result.items[0].id;
+
+    return customers.result.items[0]?.id;
   } catch (error) {
     console.error('Error retrieving customer:', error);
     throw error;

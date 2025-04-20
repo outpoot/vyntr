@@ -75,8 +75,8 @@
 </script>
 
 <AuthGate
-    title="API Access"
-    description="Sign in to get your free API key with 1,000 credits to start."
+	title="API Access"
+	description="Sign in to get your free API key with 1,000 credits to start."
 >
 	<div class="container mx-auto space-y-6 p-4 md:p-8">
 		<div class="flex flex-col items-center justify-center">
@@ -99,13 +99,13 @@
 						{#each creditPackages as pkg}
 							<Button
 								variant="outline"
-								class="relative flex h-auto w-full flex-col gap-1 p-4 hover:border-primary"
+								class="relative flex h-auto w-full flex-col gap-1 p-4 hover:border-primary hover:no-underline"
 								href={`/api/auth/checkout/${pkg.credits}`}
 								data-polar-checkout
 								data-polar-checkout-theme="light"
 							>
 								<div class="flex w-full items-center justify-between">
-									<span class="text-lg font-bold">
+									<span class="text-lg font-bold text-foreground">
 										{pkg.credits.toLocaleString()} credits
 									</span>
 									<ArrowRight class="h-4 w-4 text-muted" />
@@ -164,7 +164,9 @@
 								linked="usage-data"
 								empty="Hover to see details"
 								transform={(key) =>
-									key ? formatDateFriendly(new Date(key).getTime()) + ' | ' : 'Hover to see details'}
+									key
+										? formatDateFriendly(new Date(key).getTime()) + ' | '
+										: 'Hover to see details'}
 							/>
 							<LinkedValue
 								uid="usage"

@@ -25,7 +25,6 @@ if (!PUBLIC_PRODUCT_ID_100000) throw new Error('PUBLIC_PRODUCT_ID_100000 is not 
 
 export const polarClient = new Polar({
     accessToken: env.POLAR_ACCESS_TOKEN,
-    server: 'sandbox'
 });
 
 export const auth = betterAuth({
