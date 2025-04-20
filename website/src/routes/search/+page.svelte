@@ -25,7 +25,8 @@
 		date: null,
 		word: null,
 		currency: null,
-		unitConversion: null
+		unitConversion: null,
+		ai_summary: null
 	});
 	let mathResult = $state<CalculatorSearchDetail | null>(null);
 	let timerSeconds = $state<number | null>(null);

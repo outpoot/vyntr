@@ -11,8 +11,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Switch } from '$lib/components/ui/switch';
 
-	const buttonClass =
-		'border bg-card text-card-foreground shadow-custom-inset hover:bg-card-hover';
+	const buttonClass = 'border bg-card text-card-foreground shadow-custom-inset hover:bg-card-hover';
 
 	let { data } = $props();
 	let showDeleteConfirm = $state(false);
@@ -43,21 +42,62 @@
 		subscriptionStore.checkStatus();
 	});
 
+	function formatUserDataForExport() {
+		const exportData = {
+			profile: {
+				id: $USER_DATA?.id,
+				name: $USER_DATA?.name,
+				email: $USER_DATA?.email,
+				image: $USER_DATA?.image,
+				isAdmin: $USER_DATA?.isAdmin,
+				isBanned: $USER_DATA?.isBanned,
+				banReason: $USER_DATA?.banReason
+			},
+			preferences: {
+				language: selectedLanguage,
+				search: {
+					safeSearch,
+					autocomplete,
+					instantResults,
+					aiSummarise
+				},
+				privacy: {
+					anonymousQueries,
+					analyticsEnabled,
+					aiPersonalization
+				}
+			},
+			subscription: {
+				type: $subscriptionStore.isActive ? 'Pro' : 'Free',
+				isActive: $subscriptionStore.isActive
+			},
+			websites: data.websites,
+			apiKeys: data.apiKeys,
+			apiUsage: data.apiUsage,
+			messageUsage: data.messageUsage,
+			exportDate: new Date().toISOString()
+		};
+
+		return JSON.stringify(exportData, null, 2);
+	}
+
 	async function downloadData() {
 		loading = true;
 		try {
-			const response = await fetch('/api/user/data');
-			const blob = await response.blob();
-			const url = window.URL.createObjectURL(blob);
+			const data = formatUserDataForExport();
+			const blob = new Blob([data], { type: 'application/json' });
+			const url = URL.createObjectURL(blob);
 			const a = document.createElement('a');
+			const timestamp = new Date().toISOString().split('T')[0];
 			a.href = url;
-			a.download = 'my-vyntr-data.json';
+			a.download = `vyntr-data-${timestamp}.json`;
 			document.body.appendChild(a);
 			a.click();
-			window.URL.revokeObjectURL(url);
+			URL.revokeObjectURL(url);
 			document.body.removeChild(a);
 			toast.success('Data downloaded successfully');
 		} catch (err) {
+			console.error('Error downloading data:', err);
 			toast.error('Failed to download data');
 		} finally {
 			loading = false;
@@ -105,8 +145,8 @@
 </script>
 
 <AuthGate
-    title="Account Settings"
-    description="Sign in to manage your account settings and preferences."
+	title="Account Settings"
+	description="Sign in to manage your account settings and preferences."
 >
 	<div class="container mx-auto space-y-6 p-8">
 		<div class="flex flex-col items-center justify-center">
@@ -138,7 +178,8 @@
 			</div>
 			<div class="mt-4 space-y-4">
 				<p class="text-muted">
-					Current plan: <span class="font-medium">{$subscriptionStore.isActive ? 'Pro' : 'Free'}</span
+					Current plan: <span class="font-medium"
+						>{$subscriptionStore.isActive ? 'Pro' : 'Free'}</span
 					>
 				</p>
 				<div class="space-x-2">
@@ -256,7 +297,9 @@
 				<div class="flex items-center justify-between">
 					<div>
 						<Label class="text-sm font-medium">AI Personalization</Label>
-						<p class="text-sm text-muted">Allow Yappatron AI to learn from your interactions (coming soon)</p>
+						<p class="text-sm text-muted">
+							Allow Yappatron AI to learn from your interactions (coming soon)
+						</p>
 					</div>
 					<Switch
 						checked={aiPersonalization}

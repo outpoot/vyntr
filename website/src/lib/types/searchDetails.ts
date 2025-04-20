@@ -118,5 +118,5 @@ export interface SearchResponse {
     word: WordDefinitionSearchDetail | null;
     currency: CurrencySearchDetail | null;
     unitConversion: UnitConversionSearchDetail | null;
-    ai_summaries: string | null;
+    ai_summary: string | null;
 }

@@ -86,6 +86,9 @@
     @apply border-border;
   }
 
+  a {
+    @apply text-primary hover:underline;
+  }
   body {
     @apply bg-background text-foreground;
   }

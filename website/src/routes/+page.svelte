@@ -20,10 +20,10 @@
 </div>
 
 <footer class="space-x-2 border-t border-border bg-card text-sm">
-	<Button variant="ghost" href="/about">About</Button>
-	<Button variant="ghost" href="/about">Privacy</Button>
-	<Button variant="ghost" href="/about">Terms</Button>
-	<Button variant="ghost" href="/about">Settings</Button>
+	<Button variant="ghost" href="/legal/about">About</Button>
+	<Button variant="ghost" href="/legal/privacy">Privacy</Button>
+	<Button variant="ghost" href="/legal/terms">Terms</Button>
+	<Button variant="ghost" href="/settings">Settings</Button>
 </footer>
 
 <style>
