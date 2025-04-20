@@ -2,7 +2,12 @@
 	import AuthGate from '$lib/components/self/AuthGate.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Card } from '$lib/components/ui/card';
-	import { Key, Trash2, Plus, History, Coins, ArrowRight } from 'lucide-svelte';
+
+	import Key from 'lucide-svelte/icons/key';
+	import History from 'lucide-svelte/icons/history';
+	import Coins from 'lucide-svelte/icons/coins';
+	import ArrowRight from 'lucide-svelte/icons/arrow-right';
+
 	import { toast } from 'svelte-sonner';
 	import Codeblock from '$lib/components/self/Codeblock.svelte';
 	import Status from '$lib/components/self/Status.svelte';
@@ -101,10 +106,12 @@
 								variant="outline"
 								class="relative flex h-auto w-full flex-col gap-1 p-4 hover:border-primary hover:no-underline"
 								href={apiKeyId ? `/api/auth/checkout/${pkg.credits}` : undefined}
-								{...(!apiKeyId ? {} : {
-									'data-polar-checkout': '',
-									'data-polar-checkout-theme': 'light'
-								})}
+								{...!apiKeyId
+									? {}
+									: {
+											'data-polar-checkout': '',
+											'data-polar-checkout-theme': 'light'
+										}}
 								disabled={!apiKeyId}
 								title={!apiKeyId ? 'Create an API key first to purchase credits' : ''}
 							>

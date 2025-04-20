@@ -5,14 +5,18 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Select from '$lib/components/ui/select';
 	import { toast } from 'svelte-sonner';
-	import { Search, ArrowUpRight, Star, Link2, Globe, Check } from 'lucide-svelte';
+	import Search from 'lucide-svelte/icons/search';
+	import ArrowUpRight from 'lucide-svelte/icons/arrow-up-right';
+	import Star from 'lucide-svelte/icons/star';
+	import Link2 from 'lucide-svelte/icons/link-2';
+	import Globe from 'lucide-svelte/icons/globe';
+	import Check from 'lucide-svelte/icons/check';
 	import { scale } from 'svelte/transition';
 	import { quintOut } from 'svelte/easing';
 	import VoteButton from '$lib/components/self/VoteButton.svelte';
 	import {
 		Tooltip,
 		TooltipContent,
-		TooltipProvider,
 		TooltipTrigger
 	} from '$lib/components/ui/tooltip';
 	import { USER_DATA } from '$lib/stores/userdata';

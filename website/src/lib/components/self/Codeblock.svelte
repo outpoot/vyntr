@@ -1,7 +1,8 @@
 <script>
 	import { scale } from 'svelte/transition';
 	import { Button } from '../ui/button';
-	import { Check, Copy } from 'lucide-svelte';
+	import Check from 'lucide-svelte/icons/check';
+	import Copy from 'lucide-svelte/icons/copy';
 
 	const { text = '', displayOnly = false } = $props();
 	let isSuccess = $state(false);

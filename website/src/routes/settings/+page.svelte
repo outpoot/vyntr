@@ -5,7 +5,13 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select';
 	import { toast } from 'svelte-sonner';
-	import { User, CreditCard, Globe, Download, Shield, Trash2, Search } from 'lucide-svelte';
+	import User from 'lucide-svelte/icons/user';
+	import CreditCard from 'lucide-svelte/icons/credit-card';
+	import Globe from 'lucide-svelte/icons/globe';
+	import Download from 'lucide-svelte/icons/download';
+	import Shield from 'lucide-svelte/icons/shield';
+	import Trash2 from 'lucide-svelte/icons/trash-2';
+	import Search from 'lucide-svelte/icons/search';
 	import { subscriptionStore } from '$lib/stores/subscription';
 	import { USER_DATA } from '$lib/stores/userdata';
 	import { Label } from '$lib/components/ui/label';

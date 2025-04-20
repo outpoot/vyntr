@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Card } from '$lib/components/ui/card';
-	import { CircleCheck } from 'lucide-svelte';
+	import CircleCheck from 'lucide-svelte/icons/circle-check';
 	import { goto } from '$app/navigation';
 </script>
 

@@ -2,7 +2,13 @@
 	import { onMount } from 'svelte';
 	import { scale } from 'svelte/transition';
 	import { Button } from '$lib/components/ui/button';
-	import { Play, Pause, RotateCcw, Timer, Clock, Volume2, VolumeX } from 'lucide-svelte';
+	import Play from 'lucide-svelte/icons/play';
+	import Pause from 'lucide-svelte/icons/pause';
+	import RotateCcw from 'lucide-svelte/icons/rotate-ccw';
+	import Timer from 'lucide-svelte/icons/timer';
+	import Clock from 'lucide-svelte/icons/clock';
+	import Volume2 from 'lucide-svelte/icons/volume-2';
+	import VolumeX from 'lucide-svelte/icons/volume-x';
 
 	const { seconds } = $props<{ seconds: number }>();
 

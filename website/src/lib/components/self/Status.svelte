@@ -1,5 +1,9 @@
 <script lang="ts">
-	import { AlertCircle, CheckCircle2, AlertTriangle, Info } from 'lucide-svelte';
+	import AlertCircle from 'lucide-svelte/icons/alert-circle';
+	import CheckCircle2 from 'lucide-svelte/icons/check-circle2';
+	import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
+	import Info from 'lucide-svelte/icons/info';
+
 
 	interface Props {
 		type?: 'error' | 'success' | 'warning' | 'info';

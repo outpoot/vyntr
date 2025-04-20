@@ -3,7 +3,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Select from '$lib/components/ui/select/index.js';
 
-	import { ExternalLink } from 'lucide-svelte';
+	import ExternalLink from 'lucide-svelte/icons/external-link';
 
 	import { onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -21,7 +21,7 @@
 	let verified = $state(false);
 	let nextRetryTime = $state<number | null>(null);
 	let remainingTime = $state(0);
-	let cooldownInterval: number | undefined = $state();
+	let cooldownInterval: NodeJS.Timeout | undefined = $state();
 
 	// Constants
 	const domainProviders = [

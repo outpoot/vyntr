@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Book } from 'lucide-svelte';
+	import Book from 'lucide-svelte/icons/book';
 	import type { WordDefinitionSearchDetail } from '$lib/types/searchDetails';
 	import { Badge } from '../ui/badge';
 

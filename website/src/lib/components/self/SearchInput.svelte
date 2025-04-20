@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { page } from '$app/stores';
-	import { Search } from 'lucide-svelte';
+	import { page } from '$app/state';
+	import Search from 'lucide-svelte/icons/search';
 	import SearchIcon from './SearchIcon.svelte';
 	import TrailingButtons from './TrailingButtons.svelte';
 	import { Separator } from '$lib/components/ui/separator';
@@ -15,12 +15,12 @@
 		return (...args: Parameters<T>) => {
 			clearTimeout(timeout);
 			timeout = setTimeout(() => func(...args), wait);
-		};
+		};``
 	}
 
 	let {
 		value = $bindable(),
-		enableAutocomplete = $bindable($page.data.preferences?.autocomplete ?? true),
+		enableAutocomplete = $bindable(page.data.preferences?.autocomplete ?? true),
 		showTrailingButtons = true,
 		className = $bindable('')
 	} = $props();

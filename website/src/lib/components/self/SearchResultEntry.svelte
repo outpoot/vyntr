@@ -1,6 +1,8 @@
 <script lang="ts">
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import { Globe, Link, MoreVertical } from 'lucide-svelte';
+	import Globe from 'lucide-svelte/icons/globe';
+	import Link from 'lucide-svelte/icons/link';
+	import MoreVertical from 'lucide-svelte/icons/more-vertical';
 	import type { SearchResult } from '$lib/types/search';
 	import { toast } from 'svelte-sonner';
 

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
-	import { Globe, Plus } from 'lucide-svelte';
+	import Globe from 'lucide-svelte/icons/globe';
+	import Plus from 'lucide-svelte/icons/plus';
 	import { goto } from '$app/navigation';
 	import Explore from '$lib/components/self/icon/Explore.svelte';
 

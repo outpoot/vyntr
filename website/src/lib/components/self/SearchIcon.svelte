@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Search } from 'lucide-svelte';
+	import Search from 'lucide-svelte/icons/search';
 	import { Spring } from 'svelte/motion';
 
 	let { size = 28, className = '', ...rest } = $props();

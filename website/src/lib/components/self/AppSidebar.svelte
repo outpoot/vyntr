@@ -9,7 +9,10 @@
 	import Wand from './icon/Wand.svelte';
 	import SignIn from './icon/SignIn.svelte';
 	import Settings from './icon/Settings.svelte';
-	import { Sun, Moon, Menu } from 'lucide-svelte';
+	import Menu from 'lucide-svelte/icons/menu';
+	import Sun from 'lucide-svelte/icons/sun';
+	import Moon from 'lucide-svelte/icons/moon';
+
 	import Key from './icon/Key.svelte';
 
 	import { activeSidebarItem } from '$lib/stores/sidebar';

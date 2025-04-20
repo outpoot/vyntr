@@ -2,7 +2,9 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
-	import { ExternalLink, Check, X, Crown } from 'lucide-svelte';
+	import ExternalLink from 'lucide-svelte/icons/external-link';
+	import Check from 'lucide-svelte/icons/check';
+	import Crown from 'lucide-svelte/icons/crown';
 	import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select';
 
 	interface User {

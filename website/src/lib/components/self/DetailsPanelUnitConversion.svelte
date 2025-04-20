@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { ArrowRight, Ruler } from 'lucide-svelte';
+	import ArrowRight from 'lucide-svelte/icons/arrow-right';
+	import Ruler from 'lucide-svelte/icons/ruler';
 	import type { UnitConversionSearchDetail } from '$lib/types/searchDetails';
 	import { getUnitDisplayName } from '$lib/utils/unitParser';
 	import { CATEGORY_NAMES } from '$lib/utils/units';

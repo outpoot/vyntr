@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { CurrencySearchDetail } from '$lib/types/searchDetails';
-	import { DollarSign, ExternalLink } from 'lucide-svelte';
+	import DollarSign from 'lucide-svelte/icons/dollar-sign';
+	import ExternalLink from 'lucide-svelte/icons/external-link';
 	import { formatLastUpdated, formatAmount } from '$lib/utils';
 
 	const { details } = $props<{ details: CurrencySearchDetail }>();

@@ -1,7 +1,11 @@
 <script lang="ts">
 	import { Card } from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
-	import { Check, Sparkles, MessageSquare, Zap, Crown } from 'lucide-svelte';
+	import Check from 'lucide-svelte/icons/check';
+	import Sparkles from 'lucide-svelte/icons/sparkles';
+	import MessageSquare from 'lucide-svelte/icons/message-square';
+	import Zap from 'lucide-svelte/icons/zap';
+	import Crown from 'lucide-svelte/icons/crown';
 	import { subscriptionStore } from '$lib/stores/subscription';
     import { USER_DATA } from '$lib/stores/userdata';
 	import { toast } from 'svelte-sonner';

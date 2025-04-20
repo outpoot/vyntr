@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { ScrollArea } from '$lib/components/ui/scroll-area';
-	import { ArrowUp } from 'lucide-svelte';
+    import ArrowUp from 'lucide-svelte/icons/arrow-up';
 	import { Popover, PopoverContent, PopoverTrigger } from '$lib/components/ui/popover';
 	import { onMount } from 'svelte';
     import AuthGate from '$lib/components/self/AuthGate.svelte';
