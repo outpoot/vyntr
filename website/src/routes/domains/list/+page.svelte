@@ -40,7 +40,7 @@
 			<Globe class="mx-auto h-12 w-12 text-muted" />
 			<h3 class="mt-2 text-sm font-semibold">No domains connected</h3>
 			<p class="mx-auto max-w-lg rounded-lg px-4 py-3 text-center text-sm text-muted">
-				Connect your domain to unlock
+				Connect your domain to appear on the
 				<a
 					class="inline-flex translate-y-[1.5px] items-center gap-1 font-medium hover:underline"
 					href="/"
@@ -48,14 +48,8 @@
 					<img src="/favicon.svg" alt="Vyntr logo" class="h-4 w-4" />
 					Vyntr
 				</a>
-				indexing, enhance discoverability in the
-				<a
-					class="inline-flex translate-y-[1.7px] items-center gap-1 font-medium hover:underline"
-					href="/explore"
-				>
-					<Explore class="h-4 w-4 translate-y-[1.1px]" />
-					Registry
-				</a>, and start building your audience.
+
+				Registry
 			</p>
 		</div>
 	{:else}

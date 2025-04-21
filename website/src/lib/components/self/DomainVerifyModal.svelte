@@ -25,8 +25,8 @@
 
 	// Constants
 	const domainProviders = [
-		{ label: 'Cloudflare', value: 'cloudflare' },
-		{ label: 'Other Domain Registrar', value: 'any' }
+		{ label: 'Cloudflare (WIP)', value: 'cloudflare', disabled: true },
+		{ label: 'Other Domain Registrar', value: 'any', disabled: false }
 	];
 	const registrarExamples = ['GoDaddy', 'Namecheap', 'Cloudflare', 'Porkbun', 'others'];
 
@@ -103,7 +103,7 @@
 							<Select.Content>
 								<Select.Group>
 									{#each domainProviders as dp (dp.value)}
-										<Select.Item value={dp.value} label={dp.label}>
+										<Select.Item value={dp.value} label={dp.label} disabled={dp.disabled}>
 											{dp.label}
 										</Select.Item>
 									{/each}

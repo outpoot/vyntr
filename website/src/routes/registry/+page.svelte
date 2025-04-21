@@ -221,10 +221,6 @@
 							</div>
 
 							<div class="flex flex-wrap items-center gap-2 text-xs text-muted">
-								<div class="flex items-center gap-1">
-									<Globe class="h-3 w-3" />
-									<span>{site.visits?.toLocaleString() ?? 'N/A'}</span>
-								</div>
 								<Badge variant="secondary" class="text-xs font-normal capitalize">
 									{WEBSITE_CATEGORIES.find((c) => c.value === site.category)?.label ||
 										site.category}
