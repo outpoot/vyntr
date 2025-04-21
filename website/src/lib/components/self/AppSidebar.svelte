@@ -163,7 +163,12 @@
 								{#if $USER_DATA}
 									<p class="px-3 py-1.5">
 										<span class="text-sm font-medium">Logged in as "{$USER_DATA?.name}"</span>
-										<span class="text-sm text-muted-foreground">{$USER_DATA?.email}</span>
+										<span class="text-sm text-muted-foreground">{`${$USER_DATA?.email.substring(
+											0,
+											2
+										)}***${$USER_DATA?.email.substring($USER_DATA?.email.length - 1)}@${
+											$USER_DATA?.email.split('@')[1]
+										}`}</span>
 									</p>
 								{:else}
 									<p class="px-3 py-1.5">

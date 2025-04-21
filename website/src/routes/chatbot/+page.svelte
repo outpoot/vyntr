@@ -119,27 +119,33 @@
 				const events = text.split('\n\n').filter(Boolean);
 
 				for (const event of events) {
-					const lines = event.split('\n');
-					const eventType = lines[0].replace('event: ', '');
-					const data = JSON.parse(lines[1].replace('data: ', ''));
+					try {
+						const lines = event.split('\n');
+						const eventType = lines[0].replace('event: ', '');
+						const data = JSON.parse(lines[1].replace('data: ', ''));
 
-					switch (eventType) {
-						case 'sources':
-							messages[assistantMessageIndex].sources = data;
-							break;
-						case 'status':
-							messages[assistantMessageIndex].content = data;
-							content = '';
-							isGenerating = data === 'Yapping...';
-							break;
-						case 'content':
-							if (isGenerating) {
-								content += data;
-								messages[assistantMessageIndex].content = content;
-							}
-							break;
-						case 'error':
-							throw new Error(data);
+						switch (eventType) {
+							case 'sources':
+								messages[assistantMessageIndex].sources = data;
+								break;
+							case 'status':
+								messages[assistantMessageIndex].content = data;
+								content = '';
+								isGenerating = data === 'Yapping...';
+								break;
+							case 'content':
+								if (isGenerating) {
+									content += data;
+									messages[assistantMessageIndex].content = content;
+								}
+								break;
+							case 'error':
+								throw new Error(data);
+						}
+					} catch (eventError) {
+						console.error('Error processing event:', { event, error: eventError });
+						// Continue processing other events instead of breaking
+						continue;
 					}
 				}
 			}
