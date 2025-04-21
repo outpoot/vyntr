@@ -107,7 +107,7 @@
 					<span class="text-sm font-medium text-primary">Most Popular</span>
 				</div>
 				<h3 class="mt-4 text-2xl font-bold">Premium</h3>
-				<p class="mt-2 text-muted-foreground">Enhanced features for real sigmas</p>
+				<p class="mt-2 text-muted-foreground">Enhanced features for real skibidi ultra mewing sigmas</p>
 				<div class="mt-6">
 					<span class="text-3xl font-bold">$4</span>
 					<span class="text-muted-foreground">/month</span>
