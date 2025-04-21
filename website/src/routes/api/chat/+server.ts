@@ -20,7 +20,7 @@ function formatDate(date: Date): string {
     return date.toISOString();
 }
 
-export async function POST({ request, url, locals }) {
+export async function POST({ request }) {
     const session = await auth.api.getSession({
         headers: request.headers
     });
