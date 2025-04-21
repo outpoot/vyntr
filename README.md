@@ -1,4 +1,4 @@
-<img style="width: 128px; height: 128px" src="website/static/favicon.svg" /><h1 style="font-size: 48px"><a href="https://vyntr.com">Vyntr.com</a> - the independent search engine.</h1>
+<img style="width: 128px; height: 128px" src="website/static/favicon_white.svg" /><h1 style="font-size: 48px"><a href="https://vyntr.com">Vyntr.com</a> - the independent search engine.</h1>
 [Privacy Policy](https://vyntr.com/legal/privacy) | [Terms of Service](https://vyntr.com/legal/terms) | [License](LICENSE) | [YouTube video](https://vyntr.com)
 
 Vyntr is a search engine project with multiple components:
