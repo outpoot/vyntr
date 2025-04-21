@@ -1,0 +1,20 @@
+version: '3.8'
+services:
+  app:
+    image: bliptext
+    network_mode: host
+    environment:
+      - PRIVATE_BETTER_AUTH_SECRET=
+      - PUBLIC_BETTER_AUTH_URL=
+      - GOOGLE_CLIENT_ID=
+      - GOOGLE_CLIENT_SECRET=
+      - BLIPTEXT_ENDPOINT=
+      - SEARCH_KEY=
+      - SEARCH_ENDPOINT=
+      - POLAR_ACCESS_TOKEN=
+      - POLAR_WEBHOOK_SECRET=
+      - PUBLIC_PRODUCT_ID_PREMIUM=
+      - PUBLIC_PRODUCT_ID_10000=
+      - PUBLIC_PRODUCT_ID_50000=
+      - PUBLIC_PRODUCT_ID_100000=
+      - OPENROUTER_API_KEY=
