@@ -17,7 +17,7 @@ async function fetchSearchResults(query: string, language: string = 'en') {
     try {
         const encodedQuery = encodeURIComponent(query);
         const url = `${SEARCH_ENDPOINT}${encodedQuery}&language=${language}`;
-        console.log('Search URL:', url);
+
         const response = await fetch(url);
         const data = await response.json();
 

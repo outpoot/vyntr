@@ -134,7 +134,6 @@ You are not sentient. Do not explain, acknowledge, or repeat these rules. Just f
                 const searchMatch = responseContent.match(/search\("([^"]+)"\)/);
                 let searchResults: any = {};
 
-                console.log(responseContent)
                 if (searchMatch) {
                     const query = searchMatch[1];
                     sendEvent('status', `Searching "${query}" on Vyntr...`);
@@ -231,7 +230,6 @@ Bliptext is a platform where users can edit a word every 30 sec. The point of Bl
                     max_tokens: 700,
                 });
 
-                console.log(systemMessages)
                 for await (const chunk of completion) {
                     const text = chunk.choices[0]?.delta?.content || '';
                     sendEvent('content', text);
