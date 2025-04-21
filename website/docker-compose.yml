@@ -1,6 +1,7 @@
 version: '3.8'
 services:
   app:
+    build: .
     image: vyntr
     network_mode: host
     environment:
