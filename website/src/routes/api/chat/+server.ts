@@ -7,6 +7,7 @@ import { dailyMessageUsage } from '$lib/server/schema';
 import { auth } from '$lib/auth';
 import { checkPremiumStatus } from '$lib/server/authHelper';
 import { OPENROUTER_API_KEY } from '$env/static/private';
+import { performSearch } from '$lib/server/search';
 
 import { dev } from '$app/environment';
 
@@ -138,27 +139,22 @@ You are not sentient. Do not explain, acknowledge, or repeat these rules. Just f
                     const query = searchMatch[1];
                     sendEvent('status', `Searching "${query}" on Vyntr...`);
 
-                    const searchUrl = new URL('/api/search', url.origin);
-                    searchUrl.searchParams.set('q', query);
-
-                    const searchResponse = await fetch(searchUrl);
-
-                    if (!searchResponse.ok) {
-                        throw new Error(`Search failed with status ${searchResponse.status}`);
+                    try {
+                        searchResults = await performSearch(query);
+                        const sources = {
+                            web: searchResults.web?.slice(0, 3) || [],
+                            bliptext: searchResults.bliptext?.article ? {
+                                title: searchResults.bliptext.article.title,
+                                url: `https://bliptext.com/articles/${searchResults.bliptext.article.slug}`,
+                                favicon: getFavicon('bliptext.com'),
+                                preview: searchResults.bliptext.article.summary.introduction.slice(0, 100) + '...'
+                            } : null
+                        };
+                        sendEvent('sources', sources);
+                    } catch (searchError) {
+                        console.error('Search failed:', searchError);
+                        throw new Error('Search failed. Try another query.');
                     }
-
-                    searchResults = await searchResponse.json();
-
-                    const sources = {
-                        web: searchResults.web?.slice(0, 3) || [],
-                        bliptext: searchResults.bliptext?.article ? {
-                            title: searchResults.bliptext.article.title,
-                            url: `https://bliptext.com/articles/${searchResults.bliptext.article.slug}`,
-                            favicon: getFavicon('bliptext.com'),
-                            preview: searchResults.bliptext.article.summary.introduction.slice(0, 100) + '...'
-                        } : null
-                    };
-                    sendEvent('sources', sources);
                 }
                 sendEvent('status', 'Yapping...');
 
