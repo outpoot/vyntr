@@ -120,7 +120,9 @@
 </script>
 
 <div class="container mx-auto space-y-6 p-6">
-	<div class="mb-8 flex flex-col items-center justify-center gap-2 sm:flex-row sm:items-center sm:justify-between">
+	<div
+		class="mb-8 flex flex-col items-center justify-center gap-2 sm:flex-row sm:items-center sm:justify-between"
+	>
 		<div class="space-y-1">
 			<Breadcrumb.Root>
 				<Breadcrumb.List class="text-muted">
@@ -139,6 +141,14 @@
 				<span>{stats}</span>
 			</div>
 		</div>
+	</div>
+
+	<div class="flex items-center gap-2">
+		{#if data.domain.status === 'unlisted'}
+			<Button onclick={handlePublish}>Publish site</Button>
+		{:else}
+			<Button variant="outline">Edit details</Button>
+		{/if}
 	</div>
 
 	{#if data.domain.status === 'unlisted'}
