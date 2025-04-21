@@ -1,7 +1,7 @@
 version: '3.8'
 services:
   app:
-    image: bliptext
+    image: vyntr
     network_mode: host
     environment:
       - PRIVATE_BETTER_AUTH_SECRET=
