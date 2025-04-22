@@ -9,6 +9,7 @@
 	import DetailsPanelCurrency from '$lib/components/self/DetailsPanelCurrency.svelte';
 	import { Label } from '$lib/components/ui/label';
 	import DetailsPanelHighlight from '$lib/components/self/DetailsPanelHighlight.svelte';
+	import DetailsPanelGutHib from '$lib/components/self/DetailsPanelGutHib.svelte';
 
 	import { isMathExpression, evaluateMathExpression } from '$lib/utils/math';
 	import { parseTimerQuery } from '$lib/utils/timer';
@@ -97,6 +98,10 @@
 		<div class="flex w-full flex-row gap-4">
 			<div class="w-full min-w-0 flex-1 lg:max-w-[700px]">
 				{#if !isLoading}
+    				{#if query.toLowerCase().includes("guthib")}
+                        <DetailsPanelGutHib />
+                    {/if}
+
 					{#if searchData.bliptext && !searchData.unitConversion && !searchData.currency && !searchData.word && !searchData.date && timerSeconds === null && !mathResult}
 						<div class="mb-6 lg:hidden">
 							<DetailsPanelBliptext details={searchData.bliptext} />
