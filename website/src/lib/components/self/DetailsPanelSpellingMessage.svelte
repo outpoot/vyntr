@@ -1,5 +1,7 @@
 <script lang="ts">
     import HeartCrack from 'lucide-svelte/icons/heart-crack';
+
+	const { detail } = $props<{ detail: String }>();
 </script>
 
 <div
@@ -11,7 +13,7 @@
 		</div>
 		<div class="flex flex-col gap-2">
 			<div class="text-2xl font-bold">
-				You spelled it wrong!
+				{detail}
 			</div>
 		</div>
 	</div>
