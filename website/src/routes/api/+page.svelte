@@ -242,7 +242,7 @@
 					<h3 class="font-medium">Endpoint</h3>
 					<p class="text-sm text-muted">Make GET requests to:</p>
 					<div class="overflow-x-auto">
-						<Codeblock text="https://vyntr.com/api/search?q=your query" displayOnly={true} />
+						<Codeblock text="https://vyntr.com/api/v1/search?q=your query" displayOnly={true} />
 					</div>
 				</div>
 
@@ -251,7 +251,7 @@
 					<p class="text-sm text-muted">Include your API key in the Authorization header:</p>
 					<div class="overflow-x-auto">
 						<Codeblock
-							text={`curl -X GET "https://vyntr.com/api/search?q=hello" -H "Authorization: Bearer ${data.apiKey?.prefix ?? 'vyntr_'}your_api_key"`.trim()}
+							text={`curl -X GET "https://vyntr.com/api/v1/search?q=hello" -H "Authorization: Bearer ${data.apiKey?.prefix ?? 'vyntr_'}your_api_key"`.trim()}
 							displayOnly={true}
 						/>
 					</div>
