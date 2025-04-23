@@ -14,7 +14,7 @@
 		children: any;
 	}>();
 
-	let isMainPage = $state(page.route.id === '/');
+	let isMainPage = $derived(page.route.id === '/');
 
 	$effect(() => {
 		if (data?.userSession) {
