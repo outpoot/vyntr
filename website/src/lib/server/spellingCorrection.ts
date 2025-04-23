@@ -1,17 +1,17 @@
 import { db } from '$lib/server/db';
 import { spellingCorrections } from '$lib/server/schema';
 
-const SPECIAL_MISSPELLINGS: Record<string, {shown: string, replace: string}> = {
+const SPECIAL_MISSPELLINGS: Record<string, { shown: string, replace: string }> = {
 	"guthib": { shown: "You spelled it wrong", replace: "github" }
 } as const;
 
-let corrections: {source: string, target: string}[] = []
+let correctionsCache: { source: string, target: string }[] | null = null;
 
 async function loadSpellingCorrections() {
-	if (corrections.length != 0) return
-	corrections = await db.select()
+	if (correctionsCache !== null) return;
+	correctionsCache = await db.select()
 		.from(spellingCorrections)
-		.execute()
+		.execute();
 }
 
 export type SpellingCorrection = {
@@ -20,33 +20,31 @@ export type SpellingCorrection = {
 }
 
 export async function tryCorrectSpelling(query: string): Promise<SpellingCorrection | null> {
-	await loadSpellingCorrections()
-	const tokens = query.split(" ")
-	let message = null as string | null
-	let anythingChanged = false
+	await loadSpellingCorrections();
+	const tokens = query.split(" ");
+	let message = null as string | null;
+	let anythingChanged = false;
 	const correctedTokens = tokens.map(token => {
-		const specialCorrection = SPECIAL_MISSPELLINGS[token.toLowerCase()]
+		const specialCorrection = SPECIAL_MISSPELLINGS[token.toLowerCase()];
 		if (specialCorrection) {
-			message = specialCorrection.shown
-			anythingChanged = true
-			return specialCorrection.replace
+			message = specialCorrection.shown;
+			anythingChanged = true;
+			return specialCorrection.replace;
 		}
 
-		const correction = corrections.find(c => c.source === token)
+		const correction = correctionsCache!.find(c => c.source === token);
 		if (correction) {
-			anythingChanged = true
-			return correction.target
+			anythingChanged = true;
+			return correction.target;
 		}
 
+		return token;
+	});
 
-		return token
-	})
+	if (!anythingChanged) return null;
 
-	if (!anythingChanged) return null
-
-	const correctedQuery = correctedTokens.join(" ")
 	return {
-		newQuery: correctedQuery,
+		newQuery: correctedTokens.join(" "),
 		shownMessage: message
-	}
+	};
 }
