@@ -110,7 +110,8 @@ async function fetchSearchResults(query: string, language: string = 'en') {
             pageTitle: result.title,
             date: result.date || new Date().toISOString(),
             preview: result.preview || '',
-            score: result.score
+            score: result.score,
+            nsfw: result.nsfw,
         }));
     } catch (err) {
         console.error('Search API error:', err);

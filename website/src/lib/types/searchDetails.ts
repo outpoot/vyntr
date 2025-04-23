@@ -109,6 +109,7 @@ export interface WebSearchResult {
     pageTitle: string;
     date: string;
     preview: string;
+    nsfw: boolean;
 }
 
 export interface SearchResponse {

@@ -265,11 +265,10 @@
 				<div class="flex items-center justify-between">
 					<div>
 						<Label class="text-sm font-medium">Safe Search</Label>
-						<p class="text-sm text-muted">Blur NSFW content in search results (coming soon)</p>
+						<p class="text-sm text-muted">Blur NSFW content in search results</p>
 					</div>
 					<Switch
 						checked={safeSearch}
-						disabled
 						onCheckedChange={(v) => updateSearchFeature('safeSearch', v)}
 					/>
 				</div>

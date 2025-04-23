@@ -5,9 +5,11 @@
 	import MoreVertical from 'lucide-svelte/icons/more-vertical';
 	import type { SearchResult } from '$lib/types/search';
 	import { toast } from 'svelte-sonner';
+	import { page } from '$app/state';
 
 	let { result } = $props<{ result: SearchResult }>();
 	let imageError = $state(false);
+    let showNsfw = $state(!page.data.preferences.safeSearch);
 
 	function formatDate(dateStr: string | null) {
 		if (!dateStr) return '';
@@ -26,65 +28,78 @@
 <div
 	class="relative overflow-hidden rounded-xl border bg-card p-4 shadow-custom-inset drop-shadow-md"
 >
-	<div class="flex items-start justify-between gap-2">
-		<a href={result.url} class="group inline-flex min-w-0 flex-col">
-			<div class="flex min-w-0 items-center gap-2">
-				<div class="relative flex h-full items-center">
-					<div
-						class="flex h-[26px] w-[26px] items-center justify-center rounded-full bg-white p-[1px]"
-					>
-						{#if !imageError}
-							<img
-								src={result.favicon}
-								alt=""
-								class="ml-[1px] h-[22px] w-[22px] rounded-full object-contain"
-								onerror={() => (imageError = true)}
-							/>
-						{:else}
-							<Globe class="h-[18px] w-[18px] text-muted" />
-						{/if}
+	{#if result.nsfw && !showNsfw}
+		<div class="absolute inset-0 z-10 flex items-center justify-center">
+			<button
+				class="relative z-20 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+				onclick={() => (showNsfw = true)}
+			>
+				Show Adult Content
+			</button>
+		</div>
+	{/if}
+
+	<div class:blur-sm={result.nsfw && !showNsfw}>
+		<div class="flex items-start justify-between gap-2">
+			<a href={result.url} class="group inline-flex min-w-0 flex-col">
+				<div class="flex min-w-0 items-center gap-2">
+					<div class="relative flex h-full items-center">
+						<div
+							class="flex h-[26px] w-[26px] items-center justify-center rounded-full bg-white p-[1px]"
+						>
+							{#if !imageError}
+								<img
+									src={result.favicon}
+									alt=""
+									class="ml-[1px] h-[22px] w-[22px] rounded-full object-contain"
+									onerror={() => (imageError = true)}
+								/>
+							{:else}
+								<Globe class="h-[18px] w-[18px] text-muted" />
+							{/if}
+						</div>
+					</div>
+					<div class="flex min-w-0 flex-col py-0.5">
+						<span class="truncate text-sm text-foreground">{truncateString(result.title, 50)}</span>
+						<span class="truncate text-xs text-muted">{truncateString(result.url, 50)}</span>
 					</div>
 				</div>
-				<div class="flex min-w-0 flex-col py-0.5">
-					<span class="truncate text-sm text-foreground">{truncateString(result.title, 50)}</span>
-					<span class="truncate text-xs text-muted">{truncateString(result.url, 50)}</span>
-				</div>
-			</div>
 
-			<h3 class="mt-1 text-xl text-blue-600 group-hover:underline">
-				{truncateString(result.pageTitle, 50)}
-			</h3>
-		</a>
+				<h3 class="mt-1 text-xl text-blue-600 group-hover:underline">
+					{truncateString(result.pageTitle, 50)}
+				</h3>
+			</a>
 
-		<DropdownMenu.Root>
-			<DropdownMenu.Trigger>
-				<button type="button" class="mt-1" onclick={(e) => e.preventDefault()}>
-					<MoreVertical class="h-5 w-5 text-primary" />
-				</button>
-			</DropdownMenu.Trigger>
-			<DropdownMenu.Content class="w-32 rounded-xl p-2">
-				<DropdownMenu.Item
-					class="flex w-full items-center gap-2 rounded-md p-3 text-sm font-medium transition-colors hover:bg-sidebar-accent"
-					onclick={() => {
-						navigator.clipboard.writeText(result.url);
-						toast('The link has been copied to your clipboard.');
-					}}
-				>
-					<Link />
-					Copy link
-				</DropdownMenu.Item>
-			</DropdownMenu.Content>
-		</DropdownMenu.Root>
-	</div>
+			<DropdownMenu.Root>
+				<DropdownMenu.Trigger>
+					<button type="button" class="mt-1" onclick={(e) => e.preventDefault()}>
+						<MoreVertical class="h-5 w-5 text-primary" />
+					</button>
+				</DropdownMenu.Trigger>
+				<DropdownMenu.Content class="w-32 rounded-xl p-2">
+					<DropdownMenu.Item
+						class="flex w-full items-center gap-2 rounded-md p-3 text-sm font-medium transition-colors hover:bg-sidebar-accent"
+						onclick={() => {
+							navigator.clipboard.writeText(result.url);
+							toast('The link has been copied to your clipboard.');
+						}}
+					>
+						<Link />
+						Copy link
+					</DropdownMenu.Item>
+				</DropdownMenu.Content>
+			</DropdownMenu.Root>
+		</div>
 
-	<div class="mt-2 flex text-sm text-muted">
-		<span>
-			{#if result.date}
-				<span class="text-muted/60">
-					{formatDate(result.date)} ―
-				</span>
-			{/if}
-			{truncateString(result.preview, 100)}
-		</span>
+		<div class="mt-2 flex text-sm text-muted">
+			<span>
+				{#if result.date}
+					<span class="text-muted/60">
+						{formatDate(result.date)} ―
+					</span>
+				{/if}
+				{truncateString(result.preview, 100)}
+			</span>
+		</div>
 	</div>
 </div>
