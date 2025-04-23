@@ -4,7 +4,7 @@ use serde::Deserialize;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::{Instant, SystemTime};
-use tantivy::schema::{Schema, STORED, TEXT, INDEXED, FAST};
+use tantivy::schema::{Schema, FAST, INDEXED, STORED, STRING, TEXT};
 use tantivy::{doc, Index};
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -47,8 +47,8 @@ async fn create_search_index() -> Result<Index> {
     schema_builder.add_text_field("url", TEXT | STORED);
     schema_builder.add_text_field("title", TEXT | STORED);
     schema_builder.add_text_field("content", TEXT);
-    schema_builder.add_text_field("preview", INDEXED | STORED);
-    schema_builder.add_text_field("language", INDEXED | STORED | FAST);
+    schema_builder.add_text_field("preview", STRING | STORED);
+    schema_builder.add_text_field("language", STRING | STORED | FAST);
     schema_builder.add_text_field("meta_tags", TEXT | STORED);
     schema_builder.add_bool_field("nsfw", INDEXED | STORED | FAST);
 
@@ -242,46 +242,5 @@ fn is_nsfw_domain(url: &str, nsfw_domains: &HashSet<String>) -> bool {
 }
 
 fn is_nsfw(text: &str, nsfw_domains: &HashSet<String>) -> bool {
-    const NSFW_KEYWORDS: [&str; 34] = [
-        "porn",
-        "xxx",
-        "adult",
-        "nsfw",
-        "sex",
-        "nude",
-        "naked",
-        "slut",
-        "boobs",
-        "vagina",
-        "penis",
-        "fuck",
-        "shit",
-        "pussy",
-        "dick",
-        "ass",
-        "tits",
-        "milf",
-        "anal",
-        "blowjob",
-        "orgasm",
-        "bondage",
-        "fetish",
-        "masturbation",
-        "hentai",
-        "incest",
-        "rape",
-        "bdsm",
-        "cumshot",
-        "creampie",
-        "horny",
-        "pornography",
-        "erotic",
-        "genitals",
-    ];
-
-    let text_lower = text.to_lowercase();
-    NSFW_KEYWORDS
-        .iter()
-        .any(|&keyword| text_lower.contains(keyword))
-        || is_nsfw_domain(text, nsfw_domains)
+    is_nsfw_domain(text, nsfw_domains)
 }
