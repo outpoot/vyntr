@@ -80,7 +80,7 @@
 				<ul class="mt-8 space-y-4">
 					<li class="flex items-center gap-2">
 						<MessageSquare class="h-5 w-5 text-muted-foreground" />
-						<span>5 messages per day with Yappatron AI</span>
+						<span>15 messages per day with Yappatron AI</span>
 					</li>
 					<li class="flex items-center gap-2">
 						<Zap class="h-5 w-5 text-muted-foreground" />

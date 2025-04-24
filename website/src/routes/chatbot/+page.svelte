@@ -191,7 +191,7 @@
 
 <AuthGate
     title="Welcome to Yappatron"
-    description="Sign in to start chatting with our AI assistant. Free users get 5 messages per day!"
+    description="Sign in to start chatting with our AI assistant. Free users get 15 messages per day!"
 >
     <div class="relative flex h-screen max-h-screen flex-col">
         <main class="flex-1 overflow-hidden">
