@@ -7,6 +7,9 @@ on:
 jobs:
   size-label:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - name: Size Label
         uses: "pascalgn/size-label-action@v0.4.3"

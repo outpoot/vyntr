@@ -26,7 +26,12 @@ jobs:
         if: matrix.component == 'lexicon'
         run: |
           cd lexicon/tools
-          uv pip install -r requirements.txt --upgrade
+          if [ -f "requirements.txt" ]; then
+            pip install uv
+            uv pip install -r requirements.txt --upgrade
+          else
+            echo "No requirements.txt found in lexicon/tools"
+          fi
       
       - name: Update NPM Dependencies
         if: matrix.component == 'website'
