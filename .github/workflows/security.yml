@@ -1,0 +1,37 @@
+name: Security Scans
+
+on:
+  schedule:
+    - cron: '0 2 * * 1' # Run weekly on Mondays at 2 AM
+  workflow_dispatch:
+
+jobs:
+  security-scan:
+    name: Security Scans
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [genesis, pulse, lexicon, website]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Rust Security Audit
+        if: matrix.component == 'genesis' || matrix.component == 'pulse'
+        run: |
+          cd ${{ matrix.component }}
+          cargo install cargo-audit
+          cargo audit
+      
+      - name: Run Python Security Audit
+        if: matrix.component == 'lexicon'
+        run: |
+          cd lexicon/tools
+          uv pip install safety
+          safety check
+      
+      - name: Run NPM Security Audit
+        if: matrix.component == 'website'
+        run: |
+          cd website
+          npm audit --production

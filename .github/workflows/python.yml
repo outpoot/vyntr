@@ -1,0 +1,72 @@
+name: Python Components
+
+on:
+  push:
+    branches: [ main, dev ]
+    paths:
+      - 'lexicon/**'
+      - 'genesis/tools/**/*.py'
+  pull_request:
+    paths:
+      - 'lexicon/**'
+      - 'genesis/tools/**/*.py'
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test Python Components
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install uv
+        run: pip install uv
+      
+      - name: Install dependencies and run tests for Lexicon
+        run: |
+          cd lexicon/tools
+          uv pip install -r requirements.txt
+          python -m pytest
+      
+      - name: Install dependencies and run tests for Genesis tools
+        run: |
+          cd genesis/tools/embedding
+          uv pip install -e .
+          python -m pytest
+  
+  lint:
+    name: Lint Python Code
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install linting tools
+        run: pip install black flake8 mypy
+      
+      - name: Run black
+        run: |
+          black --check lexicon/tools/src
+          black --check genesis/tools/embedding
+      
+      - name: Run flake8
+        run: |
+          flake8 lexicon/tools/src
+          flake8 genesis/tools/embedding
+      
+      - name: Run mypy
+        run: |
+          mypy lexicon/tools/src
+          mypy genesis/tools/embedding

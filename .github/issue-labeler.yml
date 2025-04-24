@@ -1,0 +1,70 @@
+# Component labels
+genesis:
+  - '(?i).*\bgenesis\b.*'
+  - '(?i).*\bcrawler\b.*'
+  - '(?i).*\bspider\b.*'
+  - '(?i).*\bcrawling\b.*'
+
+pulse:
+  - '(?i).*\bpulse\b.*'
+  - '(?i).*\bsearch\b.*'
+  - '(?i).*\bindexing\b.*'
+  - '(?i).*\btantivy\b.*'
+  - '(?i).*\bquery\b.*'
+
+lexicon:
+  - '(?i).*\blexicon\b.*'
+  - '(?i).*\bdictionary\b.*'
+  - '(?i).*\bwordnet\b.*'
+  - '(?i).*\bword\b.*'
+  - '(?i).*\bdefinition\b.*'
+
+website:
+  - '(?i).*\bwebsite\b.*'
+  - '(?i).*\bfrontend\b.*'
+  - '(?i).*\bui\b.*'
+  - '(?i).*\bsvelte\b.*'
+  - '(?i).*\bsveltekit\b.*'
+
+# Type labels
+bug:
+  - '(?i).*\bbug\b.*'
+  - '(?i).*\bfix\b.*'
+  - '(?i).*\bissue\b.*'
+  - '(?i).*\berror\b.*'
+  - '(?i).*\bfail\b.*'
+  - '(?i).*\bcrash\b.*'
+
+enhancement:
+  - '(?i).*\benhancement\b.*'
+  - '(?i).*\bfeature\b.*'
+  - '(?i).*\badd\b.*'
+  - '(?i).*\bimprove\b.*'
+  - '(?i).*\bnew\b.*'
+
+documentation:
+  - '(?i).*\bdocumentation\b.*'
+  - '(?i).*\bdoc\b.*'
+  - '(?i).*\bdocs\b.*'
+  - '(?i).*\breadme\b.*'
+
+performance:
+  - '(?i).*\bperformance\b.*'
+  - '(?i).*\boptimiz\b.*'
+  - '(?i).*\bslow\b.*'
+  - '(?i).*\bfaster\b.*'
+  - '(?i).*\bspeed\b.*'
+
+security:
+  - '(?i).*\bsecurity\b.*'
+  - '(?i).*\bsecure\b.*'
+  - '(?i).*\bvulnerab\b.*'
+  - '(?i).*\bauth\b.*'
+  - '(?i).*\bpassword\b.*'
+  - '(?i).*\blogin\b.*'
+
+accessibility:
+  - '(?i).*\baccessibility\b.*'
+  - '(?i).*\ba11y\b.*'
+  - '(?i).*\baria\b.*'
+  - '(?i).*\bkeyboard\b.*'

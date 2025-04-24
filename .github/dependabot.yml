@@ -1,0 +1,78 @@
+version: 2
+updates:
+  # Check for updates to GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+
+  # Check for updates to Rust dependencies for Genesis
+  - package-ecosystem: "cargo"
+    directory: "/genesis"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "rust"
+    commit-message:
+      prefix: "genesis"
+      include: "scope"
+    open-pull-requests-limit: 10
+
+  # Check for updates to Rust dependencies for Pulse
+  - package-ecosystem: "cargo"
+    directory: "/pulse"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "rust"
+    commit-message:
+      prefix: "pulse"
+      include: "scope"
+    open-pull-requests-limit: 10
+
+  # Check for updates to NPM dependencies for website
+  - package-ecosystem: "npm"
+    directory: "/website"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "javascript"
+    commit-message:
+      prefix: "website"
+      include: "scope"
+    open-pull-requests-limit: 10
+
+  # Check for updates to Python dependencies in Lexicon tools
+  - package-ecosystem: "pip"
+    directory: "/lexicon/tools"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "lexicon"
+      include: "scope"
+    open-pull-requests-limit: 10
+
+  # Check for updates to Python dependencies in Genesis embedding tools
+  - package-ecosystem: "pip"
+    directory: "/genesis/tools/embedding"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "genesis"
+      include: "scope"
+    open-pull-requests-limit: 10

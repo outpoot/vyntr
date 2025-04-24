@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+jobs:
+  lint-and-test:
+    name: Lint and Test All Components
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [genesis, pulse, lexicon, website]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up environment
+        run: |
+          if [[ "${{ matrix.component }}" == "genesis" || "${{ matrix.component }}" == "pulse" ]]; then
+            rustup install stable
+            rustup default stable
+          elif [[ "${{ matrix.component }}" == "lexicon" ]]; then
+            pip install uv
+          elif [[ "${{ matrix.component }}" == "website" ]]; then
+            npm install -g npm
+          fi
+      
+      - name: Lint and Test Genesis
+        if: matrix.component == 'genesis'
+        run: |
+          cd genesis
+          cargo fmt --check
+          cargo clippy -- -D warnings
+          cargo test
+      
+      - name: Lint and Test Pulse
+        if: matrix.component == 'pulse'
+        run: |
+          cd pulse
+          cargo fmt --check
+          cargo clippy -- -D warnings
+          cargo test
+      
+      - name: Lint and Test Lexicon
+        if: matrix.component == 'lexicon'
+        run: |
+          cd lexicon/tools
+          uv pip install -r requirements.txt
+          black --check src
+          mypy src
+          python -m pytest
+      
+      - name: Lint and Test Website
+        if: matrix.component == 'website'
+        run: |
+          cd website
+          npm ci
+          npm run lint
+          npm test

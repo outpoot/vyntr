@@ -154,3 +154,45 @@ Use the following issue templates:
 ## Licensing
 
 - Code contributions must be licensed under the project's CC BY-NC 4.0 license
+
+## Workflows
+
+### CI Workflow
+- Runs linting and testing for all components (Genesis, Pulse, Lexicon, Website).
+- Triggered on `push` and `pull_request` events.
+
+### Dependency Updates
+- Updates dependencies for all components weekly.
+- Includes Rust, Python, and JavaScript dependencies.
+
+### Security Scans
+- Performs security audits for all components weekly.
+- Includes `cargo audit`, `npm audit`, and Python `safety` checks.
+
+### PR Validation
+- Validates PR titles to follow semantic conventions.
+- Labels PRs based on size.
+- Checks for required test and documentation updates.
+
+### Stale Issues
+- Marks issues and PRs as stale after 60 days of inactivity.
+- Closes stale issues and PRs after 14 additional days.
+
+## Contribution Guidelines
+
+### Pull Request Process
+1. Ensure your branch is up-to-date with `main`.
+2. Run the CI workflow locally to catch issues early.
+3. Submit a PR with a clear title and description.
+4. Address feedback from reviewers promptly.
+5. Ensure all checks pass before requesting a merge.
+
+### Testing Guidelines
+- Add tests for new features and bug fixes.
+- Ensure tests cover edge cases and performance-critical paths.
+- Run `cargo test`, `npm test`, or `pytest` as applicable.
+
+### Documentation
+- Update relevant README files and inline comments.
+- Document API changes and architectural decisions.
+- Ensure documentation is clear and concise.

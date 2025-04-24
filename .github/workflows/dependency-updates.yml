@@ -1,0 +1,37 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    - cron: '0 9 * * 1' # Run at 9 AM every Monday
+  workflow_dispatch:
+
+jobs:
+  update-dependencies:
+    name: Update Dependencies
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [genesis, pulse, lexicon, website]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Update Rust Dependencies
+        if: matrix.component == 'genesis' || matrix.component == 'pulse'
+        run: |
+          cd ${{ matrix.component }}
+          cargo update
+      
+      - name: Update Python Dependencies
+        if: matrix.component == 'lexicon'
+        run: |
+          cd lexicon/tools
+          uv pip install -r requirements.txt --upgrade
+      
+      - name: Update NPM Dependencies
+        if: matrix.component == 'website'
+        run: |
+          cd website
+          npm install -g npm-check-updates
+          ncu -u
+          npm install
