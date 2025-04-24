@@ -26,7 +26,7 @@
 	let inputMessage = $state('');
 	let lastMessageElement: HTMLDivElement | null = $state(null);
 	let textareaElement: HTMLTextAreaElement;
-	let messageUsage = $state({ limit: 5, used: 0, remaining: 5, resetsAt: '' });
+	let messageUsage = $state({ limit: 15, used: 0, remaining: 15, resetsAt: '' });
 	let timeUntilReset = $state('');
 
 	function getResetTime(isoString: string) {

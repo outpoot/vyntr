@@ -11,7 +11,7 @@
 	import { toast } from 'svelte-sonner';
 
 	const benefits = [
-		'100 messages per day with Yappatron AI',
+		'150 messages per day with Yappatron AI',
 		'Priority response time',
 		'Higher website submission limits',
 		'Priority website verification',
@@ -26,8 +26,8 @@
 	const comparisons = [
 		{
 			feature: 'Daily AI Messages',
-			free: '5 messages',
-			premium: '100 messages'
+			free: '15 messages',
+			premium: '150 messages'
 		},
 		{
 			feature: 'Response Priority',

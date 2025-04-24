@@ -41,7 +41,7 @@ export async function POST({ request }) {
     });
     const isPremium = await checkPremiumStatus(session.user.email);
 
-    const messageLimit = isPremium ? 100 : 5;
+    const messageLimit = isPremium ? 150 : 15;
 
     usage = (await db
         .insert(dailyMessageUsage)
@@ -271,7 +271,7 @@ export async function GET({ request }) {
 
     const isPremium = await checkPremiumStatus(session.user.email);
 
-    const messageLimit = isPremium ? 100 : 5;
+    const messageLimit = isPremium ? 150 : 15;
     const messagesUsed = usage?.count || 0;
 
     const tomorrow = new Date(today);
