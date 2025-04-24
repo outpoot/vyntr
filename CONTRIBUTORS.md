@@ -9,7 +9,11 @@ This file recognizes the people who have contributed to the Vyntr project. Thank
 ## Contributors
 
 - [Tim Gatzke](https://github.com/Tfc538) - Developer & Contributor
-  - Documentation
+  - Added Documentation
+    - CONTRIBUTORS.md
+    - ONBOARDING.md
+    - CONTRIBUTE.md
+  - Added Copilot Context Files
 
 ### How to Add Your Name
 
