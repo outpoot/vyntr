@@ -194,9 +194,7 @@ export const aiSummaries = pgTable('ai_summaries', {
 	queryIdx: index("idx_ai_summaries_query").on(table.query)
 }));
 
-export const spellingCorrections = pgTable('spelling_correction', {
-	source: text('source').notNull().unique(),
-	target: text('target').notNull(),
-}, (table) => ({
-	queryIdx: index("idx_source").on(table.source)
-}));
+export const dictionary = pgTable('dictionary', {
+	word: text('word').notNull().unique(),
+	weight: integer('weight').notNull().default(0),
+});

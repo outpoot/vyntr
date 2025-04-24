@@ -1,6 +1,6 @@
 {
-  "id": "f74ba7b6-cd51-4381-a319-fbea8ede6f83",
-  "prevId": "66637586-b4d0-4519-b818-a3120a25071a",
+  "id": "8787b29a-f2ed-4bfe-a0f3-a8616df47dae",
+  "prevId": "f74ba7b6-cd51-4381-a319-fbea8ede6f83",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -555,6 +555,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "weight": {
+          "name": "weight",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         }
       },
       "indexes": {},

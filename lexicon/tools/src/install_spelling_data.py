@@ -7,15 +7,16 @@ import psycopg2.extras
 import os
 import sys
 import time
+import math
 from dotenv import load_dotenv
 
-SPELLING_DATA_BASE="https://download.microsoft.com/download/b/8/e/b8e6ef6b-7d0b-456c-a774-d9e454765efc/MSR%20Spelling%20Correction%20Data.zip"
-FILE="en_keystroke_pairs.sorted.txt"
+SPELLING_DATA_BASE="https://raw.githubusercontent.com/first20hours/google-10000-english/refs/heads/master/google-10000-english.txt"
+FILE="words_alpha.txt"
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 env_path = os.path.abspath(os.path.join(script_dir, '..', '..', '..', '.env'))
-BATCH_SIZE = 1000
-TABLE_NAME = "spelling_correction"
+BATCH_SIZE = 100
+TABLE_NAME = "dictionary"
 
 if os.path.exists(env_path):
     print(f"Loading environment variables from: {env_path}")
@@ -38,30 +39,17 @@ def download_spelling_data():
     """
     response = requests.get(SPELLING_DATA_BASE)
     if response.status_code == 200:
-        with open("spelling_data.zip", "wb") as f:
+        with open(FILE, "wb") as f:
             f.write(response.content)
         print("Spelling data downloaded successfully.")
     else:
         print(f"Failed to download spelling data. Status code: {response.status_code}")
 
-def extract_spelling_en():
-    """
-    Extract the specified file from the downloaded zip file.
-    """
-    with zipfile.ZipFile("spelling_data.zip", "r") as zip_ref:
-        zip_ref.extract(FILE)
-        print(f"{FILE} extracted successfully.")
-
-    # Clean up the zip file
-    os.remove("spelling_data.zip")
-    print("Zip file removed.")
-
-
 def insert_data(conn, data):
     """Inserts data into the wordnet table using execute_values."""
     insert_sql = f"""
     INSERT INTO {TABLE_NAME} (
-        source, target
+        word, weight
     ) VALUES %s
     ON CONFLICT DO NOTHING;
     """
@@ -72,7 +60,7 @@ def insert_data(conn, data):
     print(f"Preparing and inserting data in batches of {BATCH_SIZE}...")
 
     for i, entry in enumerate(data):
-        values_to_insert.append((entry[0], entry[1]))
+        values_to_insert.append(entry)
 
         if len(values_to_insert) >= BATCH_SIZE or (i + 1) == len(data):
             if values_to_insert:
@@ -101,13 +89,10 @@ def insert_data(conn, data):
     print(f"Total entries processed/attempted: {len(data)}, Estimated inserted/updated: ~{total_inserted}")
 
 
-def upload_spelling_en():
-    """
-    Upload the extracted file to the specified location.
-    """
+def upload_spelling():
     with open(FILE, "r") as f:
         lines = f.readlines()
-        data = [line.strip().split("\t") for line in lines]
+        data = [(line.strip(), -math.sqrt(i)) for i, line in enumerate(lines)]
 
     conn = None
     try:
@@ -135,7 +120,5 @@ def upload_spelling_en():
 
 if __name__ == "__main__":
     download_spelling_data()
-    extract_spelling_en()
-    upload_spelling_en()
-    # Clean up the extracted file
+    upload_spelling()
     os.remove(FILE)
