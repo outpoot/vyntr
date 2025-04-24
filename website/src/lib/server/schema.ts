@@ -193,3 +193,8 @@ export const aiSummaries = pgTable('ai_summaries', {
 }, (table) => ({
 	queryIdx: index("idx_ai_summaries_query").on(table.query)
 }));
+
+export const dictionary = pgTable('dictionary', {
+	word: text('word').notNull().unique(),
+	weight: integer('weight').notNull().default(0),
+});

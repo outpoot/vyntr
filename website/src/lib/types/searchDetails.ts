@@ -1,6 +1,7 @@
 import type { ArticleData } from './article';
 import type { TimeUnit } from '$lib/utils/date';
 import type { UnitCategory } from '$lib/utils/units';
+import type { SpellingCorrection } from '$lib/server/spellingCorrection';
 
 export type SearchDetailType = 'bliptext' | 'person' | 'calculator' | 'movie' | 'date' | 'word' | 'currency' | 'unitConversion';
 
@@ -120,4 +121,5 @@ export interface SearchResponse {
     currency: CurrencySearchDetail | null;
     unitConversion: UnitConversionSearchDetail | null;
     ai_summary: string | null;
+	  correction: SpellingCorrection | null;
 }

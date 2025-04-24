@@ -1,5 +1,5 @@
 # Vyntr Lexicon
-This is the code behind "word lookups" in Vyntr, powered by [English WordNet](https://en-word.net/)
+This is the code behind "word lookups" and autocorrection in Vyntr, powered by [English WordNet](https://en-word.net/)
 
 To generate the needed `wn.json` in `vyntr/lexicon/wn.json`:
 1. Go to https://en-word.net/ and click "Download as XML"

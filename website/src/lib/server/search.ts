@@ -10,6 +10,7 @@ import { eq, and, sql } from 'drizzle-orm';
 import { SEARCH_ENDPOINT } from '$env/static/private';
 import { getFavicon } from '$lib/utils';
 import { db } from '$lib/server/db';
+import { tryCorrectSpelling } from '$lib/server/spellingCorrection';
 
 export async function performSearch(query: string, userPrefs: any = null) {
     const language = userPrefs?.preferredLanguage || 'en';
@@ -18,6 +19,8 @@ export async function performSearch(query: string, userPrefs: any = null) {
     if (!userPrefs || userPrefs.anonymousQueries) {
         saveSearchQuery(query);
     }
+
+    const spellingCorrection = await tryCorrectSpelling(query);
 
     // ==================== DATE ====================
     const dateResult = parseDateQuery(query);
@@ -59,16 +62,30 @@ export async function performSearch(query: string, userPrefs: any = null) {
     }
 
     // ==================== WEB SEARCH ====================
-    const webResults = await fetchSearchResults(query, language);
+    let webQuery = query;
+    if (spellingCorrection) {
+        // Make use of the OR feature of tantivy
+        webQuery = "(" + query + ") OR (" + spellingCorrection.newQuery + ")";
+    }
+    const webResults = await fetchSearchResults(webQuery, language);
 
     // ==================== BLIPTEXT SEARCH ====================
-    const bliptextResults = await searchBliptext(query);
+    let bliptextResults = await searchBliptext(query);
+    // When no results are found, try the corrected spelling
+    if ((!bliptextResults.bestMatch) && spellingCorrection) {
+        bliptextResults = await searchBliptext(spellingCorrection.newQuery);
+    }
     const bliptextDetail = bliptextResults.bestMatch ? { type: 'bliptext', article: bliptextResults.bestMatch } : null;
 
     // ==================== WORD LOOKUP ====================
     let wordDetail = null;
     try {
-        const matches = await searchWordnet(query);
+        let matches = await searchWordnet(query);
+
+        if (matches.length === 0 && spellingCorrection) {
+            matches = await searchWordnet(spellingCorrection.newQuery);
+        }
+
         if (matches.length > 0) {
             const bestMatch = matches[0];
             wordDetail = bestMatch.entry;
@@ -91,7 +108,8 @@ export async function performSearch(query: string, userPrefs: any = null) {
         word: wordDetail,
         currency: currencyDetail,
         unitConversion: unitConversionDetail,
-        ai_summary: aiSummary
+        ai_summary: aiSummary,
+        correction: spellingCorrection
     };
 }
 
