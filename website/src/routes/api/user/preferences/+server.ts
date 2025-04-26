@@ -39,7 +39,8 @@ export const PATCH: RequestHandler = async ({ request }) => {
         'aiSummarise',
         'anonymousQueries',
         'analyticsEnabled',
-        'aiPersonalization'
+        'aiPersonalization',
+        'excludeNsfw'
     ];
 
     // filter out invalid fields
