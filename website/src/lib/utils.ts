@@ -70,3 +70,15 @@ export function getFavicon(url: string) {
 		return '';
 	}
 }
+
+export function truncateEmail(email: string) {
+	const [localPart, domainPart] = email.split('@');
+
+	if (localPart.length <= 4) {
+		return email;
+	}
+
+	const firstTwo = localPart.substring(0, 2);
+	const lastTwo = localPart.substring(localPart.length - 2);
+	return `${firstTwo}***${lastTwo}@${domainPart}`;
+}

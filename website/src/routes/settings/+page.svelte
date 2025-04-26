@@ -12,10 +12,13 @@
 	import Shield from 'lucide-svelte/icons/shield';
 	import Trash2 from 'lucide-svelte/icons/trash-2';
 	import Search from 'lucide-svelte/icons/search';
+	import Eye from 'lucide-svelte/icons/eye';
+	import EyeOff from 'lucide-svelte/icons/eye-off';
 	import { subscriptionStore } from '$lib/stores/subscription';
 	import { USER_DATA } from '$lib/stores/userdata';
 	import { Label } from '$lib/components/ui/label';
 	import { Switch } from '$lib/components/ui/switch';
+	import { truncateEmail } from '$lib/utils.js';
 
 	const buttonClass = 'border bg-card text-card-foreground shadow-custom-inset hover:bg-card-hover';
 
@@ -80,6 +83,7 @@
 	let anonymousQueries = $state(data.preferences.anonymousQueries);
 	let analyticsEnabled = $state(data.preferences.analyticsEnabled);
 	let aiPersonalization = $state(data.preferences.aiPersonalization);
+	let excludeNsfw = $state(data.preferences.excludeNsfw);
 
 	$effect(() => {
 		subscriptionStore.checkStatus();
@@ -185,6 +189,8 @@
 			toast.error('Failed to update preference');
 		}
 	}
+
+	let showEmail = $state(false);
 </script>
 
 <AuthGate
@@ -205,7 +211,18 @@
 			<div class="mt-4 space-y-4">
 				<div>
 					<Label class="text-sm font-medium">Email</Label>
-					<p class="text-muted">{$USER_DATA?.email}</p>
+					<div class="flex items-center gap-2">
+						<p class="text-muted">
+							{showEmail ? $USER_DATA?.email : truncateEmail($USER_DATA?.email ?? '')}
+						</p>
+						<button class="text-muted hover:text-primary" onclick={() => (showEmail = !showEmail)}>
+							{#if showEmail}
+								<EyeOff class="h-4 w-4" />
+							{:else}
+								<Eye class="h-4 w-4" />
+							{/if}
+						</button>
+					</div>
 				</div>
 				<div>
 					<Label class="text-sm font-medium">Name</Label>
@@ -270,6 +287,17 @@
 					<Switch
 						checked={safeSearch}
 						onCheckedChange={(v) => updateSearchFeature('safeSearch', v)}
+					/>
+				</div>
+
+				<div class="flex items-center justify-between">
+					<div>
+						<Label class="text-sm font-medium">Exclude Adult Content</Label>
+						<p class="text-sm text-muted">Remove NSFW results completely from searches</p>
+					</div>
+					<Switch
+						checked={excludeNsfw}
+						onCheckedChange={(v) => updateSearchFeature('excludeNsfw', v)}
 					/>
 				</div>
 

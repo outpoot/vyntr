@@ -22,6 +22,7 @@ export const load: LayoutServerLoad = async (event) => {
         instantResults: true,
         aiSummarise: true,
         analyticsEnabled: true,
+        excludeNsfw: false,
     };
 
     if (sessionResponse?.user) {
@@ -35,6 +36,7 @@ export const load: LayoutServerLoad = async (event) => {
                 instantResults: userPrefs.instantResults,
                 aiSummarise: userPrefs.aiSummarise,
                 analyticsEnabled: userPrefs.analyticsEnabled,
+                excludeNsfw: userPrefs.excludeNsfw,
             };
         }
     }

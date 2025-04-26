@@ -1,0 +1,1 @@
+ALTER TABLE "user_preferences" ADD COLUMN "exclude_nsfw" boolean DEFAULT false NOT NULL;

@@ -59,7 +59,11 @@ export async function performSearch(query: string, userPrefs: any = null) {
     }
 
     // ==================== WEB SEARCH ====================
-    const webResults = await fetchSearchResults(query, language);
+    let searchQuery = query;
+    if (userPrefs?.excludeNsfw ?? true) {
+        searchQuery = `${searchQuery} NOT nsfw:true`;
+    }
+    const webResults = await fetchSearchResults(searchQuery, language);
 
     // ==================== BLIPTEXT SEARCH ====================
     const bliptextResults = await searchBliptext(query);

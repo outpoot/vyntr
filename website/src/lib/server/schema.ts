@@ -72,6 +72,7 @@ export const userPreferences = pgTable('user_preferences', {
 	userId: text('user_id').primaryKey().references(() => user.id, { onDelete: 'cascade' }),
 	preferredLanguage: text('preferred_language').default('en').notNull(),
 	safeSearch: boolean('safe_search').default(true).notNull(),
+	excludeNsfw: boolean('exclude_nsfw').default(false).notNull(),
 	autocomplete: boolean('autocomplete').default(true).notNull(),
 	instantResults: boolean('instant_results').default(true).notNull(),
 	aiSummarise: boolean('ai_summarise').default(true).notNull(),
