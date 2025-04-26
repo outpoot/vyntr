@@ -158,6 +158,7 @@ export const auth = betterAuth({
                 defaultValue: null,
                 input: false
             }
-        }
+        },
+        deleteUser: { enabled: true }
     },
 });

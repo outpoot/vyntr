@@ -29,6 +29,8 @@
 	import { Button } from '../ui/button';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import { truncateEmail } from '$lib/utils';
+	import TipsDialog from './TipsDialog.svelte';
+	import Vyntr from './icon/Vyntr.svelte';
 
 	let navItems = $derived([
 		{ id: 'home', label: 'Home', icon: Home, href: '/home' },
@@ -91,6 +93,7 @@
 	};
 
 	let showConfirm = $state(false);
+	let showTips = $state(false);
 
 	function toggleTheme() {
 		setMode($mode === 'dark' ? 'light' : 'dark');
@@ -217,6 +220,13 @@
 										{/if}
 
 										<div class="my-2 border-t"></div>
+										<button
+											class="flex w-full items-center gap-2 rounded-md p-3 text-sm font-medium transition-colors hover:bg-sidebar-accent"
+											onclick={() => (showTips = true)}
+										>
+											<Vyntr class="h-4 w-4" />
+											<span class="label font-medium">How to Vynt</span>
+										</button>
 
 										<button
 											onclick={handleSignOut}
@@ -246,6 +256,7 @@
 </Sidebar.Provider>
 
 <SignInConfirmDialog bind:open={showConfirm} onConfirm={handleSignIn} />
+<TipsDialog bind:open={showTips} />
 
 <style lang="postcss">
 	:global(.icon) {

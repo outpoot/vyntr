@@ -19,6 +19,8 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Switch } from '$lib/components/ui/switch';
 	import { truncateEmail } from '$lib/utils.js';
+	import { signOut } from '$lib/auth-client';
+	import { goto } from '$app/navigation';
 
 	const buttonClass = 'border bg-card text-card-foreground shadow-custom-inset hover:bg-card-hover';
 
@@ -154,9 +156,13 @@
 	async function deleteAccount() {
 		loading = true;
 		try {
-			await fetch('/api/user', { method: 'DELETE' });
+			const res = await fetch('/api/user', { method: 'DELETE' });
+			
 			showDeleteConfirm = false;
-			window.location.href = '/';
+			USER_DATA.set(null);
+
+			if(res.status === 200) await signOut();
+			goto('/home');
 		} catch (err) {
 			toast.error('Failed to delete account');
 			loading = false;
