@@ -134,24 +134,24 @@
 					<div class="flex flex-col gap-4">
 						<!-- Skeleton for potential featured result box -->
 						<div class="mb-6 animate-pulse rounded-xl border bg-card p-4 shadow-custom-inset drop-shadow-md">
-							<div class="h-6 w-1/3 rounded-md bg-muted"></div>
-							<div class="mt-2 h-20 w-full rounded-md bg-muted"></div>
+							<div class="h-6 w-1/3 rounded-md bg-muted/20"></div>
+							<div class="mt-2 h-20 w-full rounded-md bg-muted/20"></div>
 						</div>
 						
 						{#each Array(5) as _, i}
 							<div class="animate-pulse rounded-xl border bg-card p-4 shadow-custom-inset drop-shadow-md">
 								<div class="flex items-start gap-2">
-									<div class="h-[26px] w-[26px] rounded-full bg-muted"></div>
+									<div class="h-[26px] w-[26px] rounded-full bg-muted/20"></div>
 									<div class="flex flex-col gap-1 py-0.5">
-										<div class="h-4 w-40 rounded bg-muted"></div>
-										<div class="h-3 w-32 rounded bg-muted"></div>
+										<div class="h-4 w-40 rounded bg-muted/20"></div>
+										<div class="h-3 w-32 rounded bg-muted/20"></div>
 									</div>
 								</div>
-								<div class="mt-1 h-6 w-3/4 rounded bg-muted"></div>
+								<div class="mt-1 h-6 w-3/4 rounded bg-muted/20"></div>
 								<div class="mt-3 space-y-2">
-									<div class="h-3 w-full rounded bg-muted"></div>
-									<div class="h-3 w-5/6 rounded bg-muted"></div>
-									<div class="h-3 w-4/6 rounded bg-muted"></div>
+									<div class="h-3 w-full rounded bg-muted/20"></div>
+									<div class="h-3 w-5/6 rounded bg-muted/20"></div>
+									<div class="h-3 w-4/6 rounded bg-muted/20"></div>
 								</div>
 							</div>
 						{/each}
