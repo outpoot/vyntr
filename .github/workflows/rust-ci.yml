@@ -1,0 +1,38 @@
+name: Rust CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        profile: minimal
+        override: true
+
+    - name: Build project
+      run: |
+        cd genesis
+        cargo build --verbose
+
+    - name: Run tests
+      run: |
+        cd genesis
+        cargo test --verbose
+
+    - name: Lint code
+      run: |
+        cd genesis
+        cargo fmt -- --check
+        cargo clippy -- -D warnings

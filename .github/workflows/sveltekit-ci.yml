@@ -1,0 +1,40 @@
+name: SvelteKit CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  lint-build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '16'
+
+    - name: Install dependencies
+      run: |
+        cd website
+        npm install
+
+    - name: Lint code
+      run: |
+        cd website
+        npm run lint
+
+    - name: Build project
+      run: |
+        cd website
+        npm run build
+
+    - name: Run tests
+      run: |
+        cd website
+        npm test

@@ -1,0 +1,33 @@
+# Vyntr CODEOWNERS file
+# This file determines automatic reviewer assignments for pull requests
+# Format: file_pattern @user_or_team
+
+# Default owners for everything in the repo
+* @project-leads
+
+# Genesis (Crawler) component
+/genesis/ @crawler-team
+/genesis/src/ @crawler-team
+/genesis/tools/ @crawler-team @data-team
+
+# Pulse (Search) component
+/pulse/ @search-team
+/pulse/src/ @search-team
+/pulse/migrations/ @search-team @data-team
+
+# Lexicon (Dictionary) component
+/lexicon/ @dictionary-team
+/lexicon/tools/ @dictionary-team @data-team
+
+# Website (Frontend) component
+/website/ @frontend-team
+/website/src/ @frontend-team
+/website/drizzle/ @frontend-team @data-team
+
+# Documentation
+*.md @docs-team
+/docs/ @docs-team
+
+# CI/CD and GitHub workflows
+/.github/ @devops-team
+/.github/workflows/ @devops-team

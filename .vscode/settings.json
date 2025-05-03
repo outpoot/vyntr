@@ -1,0 +1,31 @@
+{
+    "github.copilot.chat.codeGeneration.instructions": [
+        {
+            "file": "./CONTRIBUTE.md"
+        },
+        {
+            "file": "./README.md"
+        },
+        {
+            "file": "./.vscode/copilot/context/project-overview.md"
+        },
+        {
+            "file": "./.vscode/copilot/context/genesis-instructions.md"
+        },
+        {
+            "file": "./.vscode/copilot/context/pulse-instructions.md"
+        },
+        {
+            "file": "./.vscode/copilot/context/lexicon-instructions.md"
+        },
+        {
+            "file": "./.vscode/copilot/context/website-instructions.md"
+        },
+        {
+            "file": "./.vscode/copilot/context/coding-standards.md"
+        },
+        {
+            "file": "./.vscode/copilot/context/contribution-guidelines.md"
+        }
+    ]
+}
