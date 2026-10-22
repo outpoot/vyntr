@@ -48,6 +48,10 @@ export const PATCH: RequestHandler = async ({ request }) => {
         Object.entries(updates).filter(([key]) => allowedFields.includes(key))
     );
 
+    if ('preferredLanguage' in validUpdates && !/^[a-z]{2}(-[A-Za-z]{2,4})?$/.test(String(validUpdates.preferredLanguage))) {
+        throw error(400, 'Invalid language');
+    }
+
     if (Object.keys(validUpdates).length === 0) {
         throw error(400, 'No valid fields to update');
     }

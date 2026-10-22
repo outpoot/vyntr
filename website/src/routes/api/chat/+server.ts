@@ -64,9 +64,13 @@ export async function POST({ request }) {
         throw error(429, 'Daily message limit reached');
     }
 
-    const { messages } = await request.json();
+    const body = await request.json();
+    const messages: { role: 'user' | 'assistant'; content: string }[] = (Array.isArray(body?.messages) ? body.messages : [])
+        .filter((m: any) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+        .slice(-12)
+        .map((m: any) => ({ role: m.role, content: m.content.slice(0, 2000) }));
 
-    if (!messages?.length) {
+    if (!messages.length) {
         throw error(400, 'Messages are required');
     }
 

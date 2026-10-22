@@ -5,7 +5,6 @@ import DomainVerifyModal from '$lib/components/self/DomainVerifyModal.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import { generateVerificationToken } from '$lib/utils/dns';
 
 	let domain = $state('');
 	let verificationToken = $state('');
@@ -44,11 +43,15 @@ import DomainVerifyModal from '$lib/components/self/DomainVerifyModal.svelte';
 		error = isValidDomain ? '' : 'Please enter a valid domain (e.g. example.com)';
 	}
 
-	function generateToken() {
+	async function generateToken() {
 		if (!isValidDomain) return;
 
-		const fullDomain = `https://${normalizeDomain(domain)}`;
-		verificationToken = generateVerificationToken(fullDomain);
+		const res = await fetch(`/api/domains/verify?domain=${encodeURIComponent(normalizeDomain(domain))}`);
+		if (!res.ok) {
+			error = 'Could not create a verification token. Please sign in and try again.';
+			return;
+		}
+		verificationToken = (await res.json()).token;
 		showModal = true;
 	}
 </script>

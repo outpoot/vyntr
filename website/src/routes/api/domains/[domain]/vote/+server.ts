@@ -1,7 +1,7 @@
 import { error } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { website, websiteVote } from '$lib/server/schema';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { auth } from '$lib/auth';
 import type { RequestHandler } from './$types';
 
@@ -66,8 +66,8 @@ export const POST: RequestHandler = async ({ request, params }) => {
         // update vote counts
         const updated = await tx.update(website)
             .set({
-                upvotes: site.upvotes + upvotesDelta,
-                downvotes: site.downvotes + downvotesDelta,
+                upvotes: sql`${website.upvotes} + ${upvotesDelta}`,
+                downvotes: sql`${website.downvotes} + ${downvotesDelta}`,
             })
             .where(eq(website.domain, domain))
             .returning();

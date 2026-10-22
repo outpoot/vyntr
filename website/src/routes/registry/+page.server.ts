@@ -37,7 +37,7 @@ export const load: PageServerLoad = async (event) => {
     const sortedSites = sites.sort((a, b) => calculateScore(b) - calculateScore(a));
 
     return {
-        sites: sortedSites.map(site => ({
+        sites: sortedSites.map(({ userId: _userId, ...site }) => ({
             ...site,
             userVote: votes.find(v => v.website === site.domain)?.type || null
         }))

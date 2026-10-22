@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { searchQueries } from '$lib/server/schema';
-import { desc, like } from 'drizzle-orm';
+import { desc, sql } from 'drizzle-orm';
 
 export async function GET({ url }) {
     const query = url.searchParams.get('q')?.toLowerCase().trim() || '';
@@ -10,12 +10,14 @@ export async function GET({ url }) {
         return json([]);
     }
 
+    const escaped = query.replace(/[\\%_]/g, '\\$&');
+
     const suggestions = await db.select({
         query: searchQueries.query,
         count: searchQueries.count
     })
         .from(searchQueries)
-        .where(like(searchQueries.query, `${query}%`))
+        .where(sql`${searchQueries.query} LIKE ${escaped + '%'} ESCAPE '\\' AND ${searchQueries.count} >= 3`)
         .orderBy(desc(searchQueries.count))
         .limit(10);
 

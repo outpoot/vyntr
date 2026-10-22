@@ -7,6 +7,19 @@ import { PUBLIC_PRODUCT_ID_PREMIUM } from '$env/static/public';
 import type { RequestHandler } from './$types';
 import { eq } from 'drizzle-orm';
 import { checkPremiumStatus } from '$lib/server/authHelper';
+import { normalizeHost, verificationTokenFor } from '$lib/server/domainToken';
+
+export const GET: RequestHandler = async ({ request, url }) => {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session?.user) throw error(401, 'Not authenticated');
+
+    const host = normalizeHost(url.searchParams.get('domain') ?? '');
+    if (!host) throw error(400, 'Invalid domain');
+
+    return new Response(JSON.stringify({ token: verificationTokenFor(session.user.id, host) }), {
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
+    });
+};
 
 export const POST: RequestHandler = async ({ request, fetch }) => {
     const session = await auth.api.getSession({
@@ -32,13 +45,15 @@ export const POST: RequestHandler = async ({ request, fetch }) => {
         );
     }
 
-    const { domain, verificationToken } = await request.json();
+    const { domain: rawDomain } = await request.json();
 
-    if (!domain || !verificationToken) {
+    const host = normalizeHost(rawDomain);
+    if (!host) {
         throw error(400, 'Invalid input');
     }
+    const domain = `https://${host}`;
 
-    const [verified, dnsError] = await verifyDomainTXT(domain, verificationToken);
+    const [verified, dnsError] = await verifyDomainTXT(host, verificationTokenFor(session.user.id, host));
 
     if (dnsError) {
         throw error(dnsError.status, dnsError.message);

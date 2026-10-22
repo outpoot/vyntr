@@ -20,7 +20,23 @@ if (!initialized) {
     initialized = true;
 }
 
+const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
 export async function handle({ event, resolve }) {
+    const path = event.url.pathname;
+    if (path.startsWith('/api/') && !path.startsWith('/api/auth') && WRITE_METHODS.has(event.request.method)) {
+        try {
+            const session = await auth.api.getSession({ headers: event.request.headers });
+            if ((session?.user as { isBanned?: boolean } | undefined)?.isBanned) {
+                return new Response(JSON.stringify({ message: 'This account is suspended' }), {
+                    status: 403,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+        } catch {
+        }
+    }
+
     // event.setHeaders({
     //     'Cache-Control': 'private, no-cache, no-store, must-revalidate'
     // });

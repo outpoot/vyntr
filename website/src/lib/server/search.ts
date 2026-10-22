@@ -102,7 +102,7 @@ export async function performSearch(query: string, userPrefs: any = null) {
 async function fetchSearchResults(query: string, language: string = 'en') {
     try {
         const encodedQuery = encodeURIComponent(query);
-        const url = `${SEARCH_ENDPOINT}${encodedQuery}&language=${language}`;
+        const url = `${SEARCH_ENDPOINT}${encodedQuery}&language=${encodeURIComponent(language)}`;
 
         const response = await fetch(url);
         const data = await response.json();
